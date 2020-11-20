@@ -22,6 +22,16 @@ project.
   - Docker version: https://github.com/tom-doerr/TecoGAN-Docker
 - [ ] Try enhancenet-pretrained:
   ~/Videos/Demo_Reel-Recovered-SD_but_2nd_Gen/enhancenet_pretrained/
+- [ ] Try RealSR (requires Vulkan):
+```
+wget https://github.com/nihui/realsr-ncnn-vulkan/releases/download/20200818/realsr-ncnn-vulkan-20200818-linux.zip
+unzip realsr-ncnn-vulkan-20200818-linux.zip
+cd realsr-ncnn-vulkan-20200818-linux
+mkdir -p $HOME/bin/realsr-ncnn-vulkan-models
+cp -r models-DF2K models-DF2K_JPEG $HOME/bin/realsr-ncnn-vulkan-models
+cp realsr-ncnn-vulkan $HOME/bin
+```
+  -<https://linuxreviews.org/RealSR#Installation>
 
 
 ## Authors
