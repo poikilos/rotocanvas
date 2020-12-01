@@ -601,14 +601,14 @@ class DFL:
                 os.environ[k] = str(v)
 
 
-    def help():
+    def help(self):
         return dfl_help_fmt.format(dflDir)
 
 
-    def help_install():
+    def help_install(self):
         return dfl_install_help_fmt.format(dflDir)
 
-    def choose_param(name, videoPath):
+    def choose_param(self, name, videoPath):
         if videoPath is None:
             raise ValueError("videoPath was None in DFL choose_param.")
         dfSource = os.path.join(self.env["WORKSPACE"], "data_src.mp4")
@@ -628,7 +628,7 @@ class DFL:
         print("[dfl.py] * wrote {} to {}.".format(videoName, copyAs))
 
 
-    def choose_param_in(name, video_dir):
+    def choose_param_in(self, name, video_dir):
         if not os.path.isdir(self.env["WORKSPACE"]):
             print()
             print(self.help())
