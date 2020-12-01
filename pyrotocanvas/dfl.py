@@ -247,7 +247,7 @@ class DFL:
                  "--model-dir",
                  os.path.join(ws, "model"),
                  "--model", baseModel]
-        self.run_command(parts, shell=False)
+        self.run_command(parts, shell=True)
 
 
     def monitor_output(self, out, isStdErr):
