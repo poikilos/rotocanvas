@@ -96,11 +96,19 @@ class DFL:
         self.deadFlags.append("above this error message"
                               " when asking for help")
 
+        self._continuePrompts = []
+        self._continuePrompts.append("to continue")
+        self._continuePrompts.append("Done.")
 
     def setDFLDir(self, dflDir):
         self._dflDir = dflDir
         self.generateEnv()
 
+    def any_in(self, needles, haystack):
+        for needle in needles:
+            if needle in haystack:
+                return True
+        return False
 
     def generateEnv(self):
         """
@@ -373,7 +381,7 @@ class DFL:
                 self._mode = None
                 self._choices = None
                 self._commands = None
-        elif "to continue" in line:
+        elif self.any_in(self._continuePrompts, line):
             self._enter_cmd("")
             print("[dfl.py] tried to continue (entered newline)")
             # See <https://stackoverflow.com/questions/17173946/
