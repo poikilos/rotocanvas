@@ -6,7 +6,8 @@ import os
 import shutil
 import platform
 import subprocess
-
+from datetime import datetime
+import json
 from threading import Thread
 """
 from subprocess import PIPE, Popen
@@ -30,14 +31,14 @@ def enqueue_output(out, state, isStdErr):
 # edited Aug 6 '18 at 15:02 by ankostis
 
 """
-dflDir = "C:\\PortableApps\\DeepFaceLab\\DeepFaceLab_NVIDIA"
-dflWorkspace = os.path.join(dflDir, "workspace")
-
-dfl_params = {
-    "source": "Choose the video with the face you want to add.",
-    "destination": "Choose the video with the face you want to affect."
-}
-
+profile = None
+appdatas = None
+if platform.system() == "Windows":
+    profile = os.environ.get("USERPROFILE")
+    appdatas = os.path.join(profile, "AppData", "Local")
+else:
+    profile = os.environ.get("HOME")
+    appdatas = os.path.join(profile, ".config")
 
 dfl_install_help_fmt = """
 You must install DeepFace Lab such that {} exists.
@@ -49,14 +50,6 @@ from https://dev.deluge-torrent.org/wiki/Download.
 dfl_help_fmt = """
 After choosing a source and destination, you must run each batch
 file in {} in the numbered order.
-
-See also:
-
-"The DeepFaceLab Tutorial (always up-to-date)":
-https://pub.dfblue.com/pub/2019-10-25-deepfacelab-tutorial
-
-"DeepFake Tutorial: A beginners Guide with DeepFace Lab":
-https://www.cinecom.net/post-production/deepfake-tutorial-beginners/
 """
 
 digits = "0123456789"
@@ -80,9 +73,756 @@ def __nonBlockReadline(output):
     except:
         return ''
 
-class DFL:
+# DFLItem_members = ['path', 'orig', 'face', 'role', 'form', 'mask',
+#                    'hide', 'temp', 'drop']
+
+
+
+
+class DFLItem:
+    SAVES = ['path', 'orig', 'face', 'role', 'form', 'mask', 'hide',
+             'temp', 'drop']
+    MEMBER_HELP = {
+        'path': "The current location (dir or file) (unique)",
+        'orig': "The original location (dir or file)",
+        'face': "name of person or character--no spaces",
+        'role': "DLM.ROLE_SRC or DLM.ROLE_DST",
+        'form': "see DLM.FORMS_HELP",
+        'mask': "path to result_mask.mp4 if form is result",
+        'hide': "hide this item (only for workspaces in storage)",
+        'drop': "the workspace path in storage when not in the lab",
+        'proj': "where to put final video+mask if not in 'drop'",
+        # 'temp': deprecated--see isTemp(self),
+    }
+
+    def isTemp(self):
+        if self.form == DLM.FORM_ORIGINAL:
+            return True
+        elif self.form == DLM.FORM_MERGED:
+            if os.path.isdir(self.path):
+                return True
+        return False
+
+    def __init__(self, dfl, path, **kwargs):
+        """
+        Generating an item using the workspace is the normal way since
+        the workspace knows the context and can set the members
+        properly. Avoid calling this directly.
+
+        Sequential arguments:
+        path -- The workspace directory which will contain a source and
+                destination (usually one or the other if the workspace
+                is in storage and not in the lab).
+        Keyword arguments:
+        drop -- This is a directory in storage equivalent to the
+                where ejected files can be dropped. It should always
+                be a directory equivalent to the video filename but
+                without an extension.
+        """
+        if dfl is None:
+            raise ValueError("You must specify a pyrotocanvas.dfl.DLM()"
+                             " instance.")
+        self.dfl = dfl
+        for name in DFLItem.SAVES:
+            setattr(self, name, None)
+        self.hide = False
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def getDict(self):
+        item = {}
+        for name in DFLItem.SAVES:
+            item[name] = getattr(self, name)
+        return item
+
+    def isInLab(self):
+        return self.dfl.isInLab(self.path)
+
+    def setFromItem(self, item, wipe=False):
+        """
+        Sequential arguments:
+        item -- must be the same class or have the members from SAVES.
+
+        Keyword arguments:
+        wipe -- If True, set all members to None whose names are in
+                SAVES. If false, a member will only be set to None if
+                the corresponding member in item is present
+        """
+        for name in DFLItem.SAVES:
+            try:
+                got = getattr(item, name)
+                setattr(self, name, got)
+            except AttributeError:
+                if wipe:
+                    setattr(self, name, None)
+
+    def setFromDict(self, item, wipe=False):
+        """
+        Sequential arguments:
+        item -- must be the same class or have the members from SAVES.
+
+        Keyword arguments:
+        wipe -- If True, set all members to None whose names are in
+                SAVES. If false, a member will only be set to None if
+                the corresponding member in item is present
+        """
+        for name in DFLItem.SAVES:
+            try:
+                got = item[name]
+                setattr(self, name, got)
+            except KeyError:
+                if wipe:
+                    setattr(self, name, None)
+
+    def copy(self):
+        item = DFLItem(self.dfl, self.path)
+        for name in DFLItem.SAVES:
+            setattr(item, name, getattr(self, name))
+        return item
+
+
+
+class DFLWorkspace:
+
+    def __init__(self, dfl, path):
+        if dfl is None:
+            raise ValueError("You must specify a pyrotocanvas.dfl.DLM()"
+                             " instance.")
+        self.path = path
+        self.items = []
+
+    def populate(self, orig=None, role=None):
+        """
+        Keyword arguments:
+        orig -- If the workspace is not the lab, specify a filename if
+                The filename is not data_src.mp4 nor data_dst.mp4.
+                If you set this you should also set role (or the
+                workspace will generate an item for each role in
+                DLM.getRoles().
+        role -- Add only one role for the item. Normally, add this if
+                you are adding a workspace that is in storage (not in
+                the lab) that doesn't already have DLM metadata
+                (in a file named according to DLM.WS_META_NAME).
+        """
+        roles = [role]
+        if role is None:
+            roles = DLM.getRoles()
+        else:
+            if role not in DLM.getRoles():
+                raise ValueError("role must be one of: {}"
+                                 "".format(DLM.getRoles()))
+        for role in roles:
+            for form in DLM.getSteps():
+                for container in DFL.getContainers():
+                    item, error = self.generateItem(
+                        role,
+                        form,
+                        container,
+                        orig=orig
+                    )
+                    """
+                    info = DLM.formInfo(role, form, container)
+                    if not info['everExists']:
+                        continue
+                    path = info['path']
+                    if os.path.exists(path):
+                        result = self._toItem(path)
+                        if result is None:
+                            raise RuntimeError("_toItem failed"
+                                               " (got None)")
+                        results.append(result)
+                    """
+        return results
+
+    def getRoleItems(self, role):
+        """
+        Get a list of items matching the role. There is usually only
+        one. Only one is allowed if the workspace is the lab workspace.
+
+        Sequential arguments:
+        role -- only search a certain role
+        """
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getRoles()))
+        results = []
+        for item in self.items:
+            if item.role == role:
+                results.append(item)
+        return results
+
+
+    def getItemAttribute(self, role, name):
+        """
+        This will only work if the workspace is the lab's workspace
+        usually, otherwise there won't be metadata, but if the
+
+        Sequential arguments:
+        role -- only search a certain role
+        """
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getRoles()))
+        for item in self.items:
+            if item.role == role:
+                try:
+                    return getattr(item, name)
+                except AttributeError:
+                    return None
+        return None
+
+    def generateItem(self, role, form, container, orig=None):
+        """
+        Keyword arguments:
+        orig -- If not None, forcibly make the item if it exists.
+                Otherwise return (None, error)
+                when a standardized container path
+                not present. Only set this when the workspace is a user
+                workspace in storage (not the lab's workspace).
+
+        returns: tuple of (item or None, error or None)
+        """
+        other = {}
+        other[DLM.C_DIR] = DLM.C_FILE
+        other[DLM.C_FILE] = DLM.C_DIR
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getRoles()))
+        if form not in DLM.getForms():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getForms()))
+        if container not in DLM.getContainers():
+            raise ValueError("container must be one of: {}"
+                             "".format(DLM.getContainers()))
+        paths = None
+        error = None
+
+        if orig is not None:
+            if container == DLM.C_DIR:
+                if not os.path.isdir(orig):
+                    raise ValueError("Setting {} as {} {} is impossible"
+                                     " because it isn't a directory."
+                                     "".format(orig, role, container))
+            else:
+                if not os.path.isfile(orig):
+                    raise ValueError("Setting {} as {} {} is impossible"
+                                     " because it isn't a file."
+                                     "".format(orig, role, container))
+            paths, error = self.formPaths(role, form, container)
+            if paths is None:
+                raise ValueError("The path \"{}\" is a {} but the"
+                                 " only possible container for the"
+                                 " {} role is {}"
+                                 "".format(orig, container,
+                                           role, other[container]))
+            paths = [orig]
+        else:
+            paths, error = self.formPaths(role, form, container)
+        if paths is None:
+            # examples:
+            # - If role is DLM.DFL_SRC, there should be no
+            #   case where form is merged (only DLM.DFL_DST ever gets
+            #   merged).
+            # - If container is DLM.C_FILE, there should be no
+            #   case where form is aligned (only images ever get
+            #   aligned, and the path for an image sequence is a
+            #   directory.
+            raise ValueError(error)
+            # return None, error
+        for path in paths:
+            items = self.getRoleItems(role)
+            item = DFLItem(self.dfl, path)
+            if len(items) > 0:
+                if len(items) > 1:
+                    print("WARNING: Getting the item attributes is"
+                          " impossible since there is more than one"
+                          " item with the {} role in \"{}\"'s metadata"
+                          "".format(role, self.path))
+                else:
+                    for k, v in items[0].items():
+                        setattr(item, k, v)
+                        if k not in DFLItem.SAVES:
+                            print("WARNING: {} is not one of {} so it"
+                                  " will not be saved upon closing the"
+                                  " workspace."
+                                  "".format(k, DFLItem.SAVES))
+            foundCont = DLM.C_DIR
+            if os.path.isfile(path):
+                foundCont = DLM.C_FILE
+                if container == DLM.C_FILE:
+                    return item, None
+            else:
+                if container == DLM.C_DIR:
+                    return item, None
+        error = None
+        if orig is not None:
+            # If the user tried to add a file from storage via adding
+            # a workspace, then not generating an item is a failure.
+            error = ("The path's detected container is {} but"
+                     " you specified {}.".format(foundCont, container))
+        # else the workspace can just not report having this item.
+        return None, error
+
+    def formed(self, role, form, container):
+        """
+        returns:
+        - True: container exists
+        - False: doesn't exist
+        - None: The container isn't expected to exist for the role and
+                form.
+        """
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getRoles()))
+        if form not in DLM.getForms():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getForms()))
+        if container not in DLM.getContainers():
+            raise ValueError("container must be one of: {}"
+                             "".format(DLM.getContainers()))
+
+        item = None
+        error = None
+        try:
+            item, error = generateItem(self, role, form, container)
+        except ValueError:
+            # if the file isn't there, ignore the problem and
+            # return None.
+            pass
+        return item is not None
+        """
+        path, error = self.formPaths(role, form, container)
+        if path is None:
+            # examples:
+            # - If role is DLM.ROLE_SRC, there should be no
+            #   case where form is merged (only DLM.ROLE_DST ever gets
+            #   merged).
+            # - If container is DLM.C_FILE, there should be no
+            #   case where form is aligned (only images ever get
+            #   aligned, and the path for an image sequence is a
+            #   directory.
+            return None, error
+        paths = [path]
+        if hasattr(path, 'append'):
+            paths = path
+        for path in paths:
+            if container == DLM.C_FILE:
+                if os.path.isfile(path):
+                    return True, None
+            else:
+                if os.path.isdir(path):
+                    return True, None
+        return False, None
+        """
+
+    def maskPath(self, container):
+        ws = self.path
+        base = os.path.join(ws, 'data_dst')
+        if container == DLM.C_FILE:
+            return os.path.join(ws, 'result_mask.mp4')
+        return os.path.join(base, 'merged_mask')
+
+    def formPaths(self, role, form, container):
+        """
+        Get a list of path(s) of file/directory for a form.
+
+        returns:
+        a tuple containing:
+        - a list of paths (or None)
+        - an error string (or None)
+        """
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getRoles()))
+        if form not in DLM.getForms():
+            raise ValueError("role must be one of: {}"
+                             "".format(DLM.getForms()))
+        if container not in DLM.getContainers():
+            raise ValueError("container must be one of: {}"
+                             "".format(DLM.getContainers()))
+        ws = self.path
+        roleSub = None
+
+        if role == DLM.ROLE_DST:
+            roleSub = os.path.join(ws, 'data_src')
+        elif role == DLM.ROLE_SRC:
+            roleSub = os.path.join(ws, 'data_dst')
+        else:
+            raise ValueError('role must be one of: {}'
+                             ''.format(DLM.getRoles()))
+        paths = None
+        if form == DLM.FORM_MERGED:
+            if role == DLM.ROLE_SRC:
+                return None, "Only dest ever gets merged."
+            if container == DLM.C_FILE:
+                noExt = os.path.join(ws, 'result')
+                paths = [noExt + '.mp4', noExt + '.avi', noExt + '.mov']
+            else:
+                paths = [os.path.join(roleSub, 'merged')]
+        elif form == DLM.FORM_ALIGNED:
+            if container == DLM.C_FILE:
+                return None, "There is never an aligned video."
+            paths = [os.path.join(roleSub, 'aligned')]
+        elif form == DLM.FORM_ORIGINAL:
+            # The original can only be mp4 with the roleSub as the name.
+            paths = [roleSub + '.mp4']
+        else:
+            raise ValueError("form \"{}\" is not implemented"
+                             "".format(form))
+
+        return paths, None
+
+    def isInLab(self):
+        return self.dfl.isInLab(self.path)
+
+    def save(self):
+        json.dump(
+            self.meta,
+            os.path.join(self.path, DFLWorkspace.WS_META_NAME)
+        )
+
+class DLM:
+
+    """
+    This is a DFL manager.
+    """
+    PLACE_STORAGE = 'storage'
+    PLACE_LAB = 'lab'
+    # ^ DLM.getPlaces must list PLACE_*
+    ROLE_SRC = 'src'
+    ROLE_DST = 'dst'
+    # ^ DLM.getRoles must list ROLE_*
+    ROLES_HELP = {
+        ROLE_SRC: "Choose the video with the face you want to add.",
+        ROLE_DST: "Choose the video with the face you want to affect."
+    }
+    FORM_ORIGINAL = 'original'  # isdir implies "extract images" step
+    FORM_ALIGNED = 'aligned'
+    FORM_MERGED = 'merged' # isfile implies "merge to ..." step
+    # ^ DLM.getForms must list FORM_*
+    FORMS_HELP = {
+        'original': "not modified by DFL",
+        'aligned': "faceset extract is complete",
+        'merged': "if directory, then images, if file, then result.mp4",
+    }
+    IN = 'container'  # for brevity
+    C_DIR = 'dir'
+    C_FILE = 'file'
+    # ^ DLM.getContainers must list C_*
+
+    FORMS_ORDER = [
+        # The OP_ codes between the forms are the ones available for
+        # the preceding form (At least one produces the next form)
+        {'form':FORM_ORIGINAL, 'role':ROLE_SRC,
+         'container':C_FILE},
+        # OP_EXTRACT_IMAGES_SRC
+        {'form':FORM_ORIGINAL, 'role':ROLE_DST,
+         'container':C_FILE},
+        # OP_EXTRACT_IMAGES_DST
+        {'form':FORM_ORIGINAL, 'role':ROLE_SRC,
+         'container':C_DIR},
+        # OP_EXTRACT_FACESET_SRC, OP_EXTRACT_FACESET_SRC_M
+        {'form':FORM_ORIGINAL, 'role':ROLE_DST,
+         'container':C_DIR},
+        # OP_DENOISE_DST, OP_EXTRACT_DST_FACESET,
+        # OP_EXTRACT_DST_FACESET_M, OP_EXTRACT_DST_FACESET_MF
+        # ^ Put OP_DENOISE_DST
+        #   ("3.optional) denoise data_dst images.bat")
+        #   here to avoid confusion (It isn't relevant until now).
+        # ^ This form was already available, but progressing to the next
+        # form now makes sense, and these ops are next in DLM.
+        {'form':FORM_ALIGNED, 'role':ROLE_SRC,
+         'container':C_DIR},
+        # OP_SORT_SRC, OP_DELETE_BAD_SRC
+        # ^  put 5 AFTER all extraction to avoid confusion
+        #   since this stuff is optional but recommended and can be done
+        #   any time before TRAIN.
+        {'form':FORM_ALIGNED, 'role':ROLE_DST,
+         'container':C_DIR},
+        # After ROLE_SRC and ROLE_DST are both in aligned form, you
+        # can train any time, but the sorting and deleting are
+        # normally done. You can also merge at any time, but you train
+        # first or the output will be incorrect or it will not do
+        # anything if there is no model trained at all.
+        # OP_SORT_DST, OP_DELETE_BAD_DST, OP_TRAIN_QUICK96,
+        # OP_TRAIN_SAEHD, OP_MERGE_QUICK96, OP_MERGE_SAEHD
+        {'form':FORM_MERGED, 'role':ROLE_DST,
+         'container':C_DIR},
+        # OP_FINALIZE_MP4, OP_FINALIZE_MP4_L, OP_FINALIZE_MOV_L,
+        # OP_FINALIZE_AVI,
+        {'form':FORM_MERGED, 'role':ROLE_DST,
+         'container':C_FILE},
+    ]
+    OP_EXTRACT_IMAGES_SRC = 'Extract src images'
+    OP_EXTRACT_IMAGES_DST = 'Extract dst images'
+    OP_DENOISE_DST = 'Denoise dst (optional)'
+    OP_EXTRACT_FACESET_SRC = 'Extract src faceset'
+    OP_EXTRACT_FACESET_SRC_M = 'Extract src faceset (manual)'
+    OP_EXTRACT_DST_FACESET = 'Extract dst faceset'
+    OP_EXTRACT_DST_FACESET_M = 'Extract dst faceset (manual)'
+    OP_EXTRACT_DST_FACESET_MF = 'Extract dst faceset (manual fix)'
+    OP_SORT_SRC = 'Sort src faceset (helps manual deletion)'
+    OP_DELETE_BAD_SRC = 'Manually delete unused src faces (optional)'
+    OP_SORT_DST = 'Sort dst faceset (helps manual deletion)'
+    OP_DELETE_BAD_DST = 'Manually delete unused dst faces (recommended)'
+    OP_TRAIN_QUICK96 = 'Train (Quick96)'
+    OP_TRAIN_SAEHD = 'Train (SAEHD)'
+    OP_MERGE_QUICK96 = 'Merge (Quick96): requires train (Quick96)'
+    OP_MERGE_SAEHD = 'Merge (SAEHD): requires train (SAEHD)'
+    OP_FINALIZE_MP4 = 'Generate MP4'
+    OP_FINALIZE_MP4_L = 'Generate MP4 (lossless)'
+    OP_FINALIZE_MOV_L = 'Generate MOV (lossless)'
+    OP_FINALIZE_AVI = 'Generate AVI'
+
+    OPS_FOR = {
+        'original': {
+            'src': {
+                'file': [
+                    OP_EXTRACT_IMAGES_SRC,
+                ],
+                'dir': [
+                    OP_EXTRACT_FACESET_SRC,
+                    OP_EXTRACT_FACESET_SRC_M,
+                ],
+            },
+            'dst': {
+                'file': [
+                    OP_EXTRACT_IMAGES_DST,
+                ],
+                'dir': [
+                    OP_DENOISE_DST,
+                    OP_EXTRACT_DST_FACESET,
+                    OP_EXTRACT_DST_FACESET_M,
+                    OP_EXTRACT_DST_FACESET_MF,
+                ],
+            },
+        },
+        'aligned': {
+            'src': {
+                'dir': [
+                    OP_SORT_SRC,  # 4.2 sort first to make 4.1 easier:
+                    OP_DELETE_BAD_SRC,
+                ],
+            },
+            'dst': {
+                'dir': [
+                    # You can technically do any of these now, but
+                    # you have to train to get a valid result.
+                    OP_SORT_DST,
+                    OP_DELETE_BAD_DST,
+                    OP_TRAIN_QUICK96,
+                    OP_TRAIN_SAEHD,
+                    OP_MERGE_QUICK96,
+                    OP_MERGE_SAEHD,
+                ],
+            },
+        },
+        'merged': {
+            'dst': {
+                'dir': [
+                    OP_FINALIZE_MP4,
+                    OP_FINALIZE_MP4_L,
+                    OP_FINALIZE_MOV_L,
+                    OP_FINALIZE_AVI,
+                ],
+                # The program doesn't have any batches to save the video
+                # it generates. See one of the
+                # DLM functions to do that.
+            },
+        },
+    }
+    # usage: OPS_FOR[form][role][t] # gets list of OP_ strings
+    BATCHES_FOR = {}
+    BATCHES_FOR[OP_EXTRACT_IMAGES_SRC] = [
+        "2) extract images from video data_src.bat",
+    ]
+    BATCHES_FOR[OP_EXTRACT_IMAGES_DST] = [
+        "3) extract images from video data_dst FULL FPS.bat",
+    ]
+    BATCHES_FOR[OP_DENOISE_DST] = [
+        "3.optional) denoise data_dst images",
+    ]
+    BATCHES_FOR[OP_EXTRACT_FACESET_SRC] = [
+        "4) data_src faceset extract.bat",
+    ]
+    BATCHES_FOR[OP_EXTRACT_FACESET_SRC_M] = [
+        "4) data_src faceset extract MANUAL.bat",
+    ]
+    BATCHES_FOR[OP_EXTRACT_DST_FACESET] = [
+        "5) data_dst faceset extract.bat",
+    ]
+    BATCHES_FOR[OP_EXTRACT_DST_FACESET_M] = [
+        "5) data_dst faceset extract MANUAL.bat",
+    ]
+    BATCHES_FOR[OP_EXTRACT_DST_FACESET_MF] = [
+        "5) data_dst faceset extract + manual fix.bat",
+    ]
+    # NotImplemented:
+    # - "5) data_dst faceset MANUAL RE-EXTRACT DELETED
+    #   ALIGNED_DEBUG.bat"
+    # Put 4 after 5 to avoid confusion
+    # (after all extract steps)
+    BATCHES_FOR[OP_SORT_SRC] = [
+        "4.2) data_src sort.bat",
+    ]
+    BATCHES_FOR[OP_DELETE_BAD_SRC] = [
+        "4.1) data_src view aligned result.bat",
+    ]
+    # NotImplemented:
+    # - "4.2) data_src util add landmarks debug images.bat"
+    # - "4.2) data_src util faceset enhance.bat"
+    # - "4.2) data_src util faceset metadata restore.bat"
+    # - "4.2) data_src util faceset metadata save.bat"
+    # - "4.2) data_src util faceset pack.bat"
+    # - "4.2) data_src util faceset unpack.bat"
+    # - "4.2) data_src util recover original filename.bat"
+    BATCHES_FOR[OP_SORT_DST] = [
+        "5.2) data_dst sort.bat",
+    ]
+    BATCHES_FOR[OP_DELETE_BAD_DST] = [
+        "5.1) data_dst view aligned results.bat",
+    ]
+    # Not Implemented:
+    # - "5.1) data_dst view aligned_debug results.bat"
+    # - "5.2) data_dst util faceset pack.bat"
+    # - "5.2) data_dst util faceset unpack.bat"
+    # - "5.2) data_dst util recover original filename.bat"
+    # - "5.XSeg) data_dst mask - edit.bat"
+    # - "5.XSeg) data_dst mask - fetch.bat"
+    # - "5.XSeg) data_dst mask - remove.bat"
+    # - "5.XSeg) data_dst trained mask - apply.bat"
+    # - "5.XSeg) data_dst trained mask - remove.bat"
+    # - "5.XSeg) data_src mask - edit.bat"
+    # - "5.XSeg) data_src mask - fetch.bat"
+    # - "5.XSeg) data_src mask - remove.bat"
+    # - "5.XSeg) data_src trained mask - apply.bat"
+    # - "5.XSeg) data_src trained mask - remove.bat"
+    # - "5.XSeg) train.bat"
+    # Not Implemented:
+    # - "10.misc) make CPU only.bat"
+    # - "10.misc) start EBSynth.bat"
+    BATCHES_FOR[OP_TRAIN_QUICK96] = [
+        "6) train Quick96.bat",
+    ]
+    BATCHES_FOR[OP_TRAIN_SAEHD] = [
+        "6) train SAEHD.bat",
+    ]
+    BATCHES_FOR[OP_MERGE_QUICK96] = [
+        "7) merge Quick96.bat",
+    ]
+    BATCHES_FOR[OP_MERGE_SAEHD] = [
+        "7) merge SAEHD.bat",
+    ]
+
+    WS_META_NAME = "dlm-lab.json"
+
+    @staticmethod
+    def getSteps(self):
+        """
+        Get the steps of the DLM process.
+        DLM.FORM_ORIGINAL:
+        - isfile: no steps performed
+        - isdir: output of 'extract images'
+        DLM.FORM_ALIGNED
+        - isfile: invalid
+        - isdir: output of 'extract faceset'
+        DLM.FORM_MERGED
+        - isdir: output of 'MERGE'
+        - isfile: output of "merged to " video
+        """
+        # getCaption must handle each form
+        # choose_param must handle each form
+        return [DLM.FORM_ORIGINAL, DLM.FORM_ALIGNED, DLM.FORM_MERGED]
+
+    @staticmethod
+    def formInfo(role, form, container):
+        if role not in DLM.getRoles():
+            raise ValueError("{} is not a role. Pick from: {}"
+                             "".format(role, DLM.getRoles()))
+        if form not in DLM.getSteps():
+            raise ValueError("{} is not a form. Pick from: {}"
+                             "".format(form, DLM.getSteps()))
+        if container not in DLM.getContainers():
+            raise ValueError("{} is not a form. Pick from: {}"
+                             "".format(form, DLM.getContainers()))
+        ws = self.env['WORKSPACE']
+        if form == DLM.FORM_ORIGINAL:
+            if container == DLM.C_FILE:
+                if role == DLM.ROLE_DST:
+                    return {
+                        "path": os.path.join(ws, "data_dst.mp4"),
+                        "everExists": True,
+                    }
+                else:
+                    return {
+                        "path": os.path.join(ws, "data_src.mp4"),
+                        "everExists": True,
+                    }
+            else:
+                if role == DLM.ROLE_DST:
+                    return {
+                        "path": os.path.join(ws, "data_dst"),
+                        "everExists": True,
+                    }
+                else:
+                    return {
+                        "path": os.path.join(ws, "data_src"),
+                        "everExists": True,
+                    }
+        elif form == DLM.FORM_ALIGNED:
+            if container == DLM.C_FILE:
+                raise ValueError("There is no aligned video form.")
+            else:
+                if role == DLM.ROLE_DST:
+                    return {
+                        "path": os.path.join(ws, "data_dst", "aligned"),
+                        "everExists": True,
+                    }
+
+                else:
+                    return {
+                        "path": os.path.join(ws, "data_src", "aligned"),
+                        "everExists": True,
+                    }
+
+        elif form == DLM.FORM_MERGED:
+            if DLM.C_FILE:
+                if role == DLM.ROLE_DST:
+                    return {
+                        "path": os.path.join(ws, "result.mp4"),
+                        "everExists": True,
+                    }
+                    # TODO: ^ handle avi
+                else:
+                    return {
+                        "path": None,
+                        "everExists": False,
+                    }
+            else:
+                if role == DLM.ROLE_DST:
+                    return {
+                        "path": os.path.join(ws, "data_dst", "merged"),
+                        "everExists": True,
+                    }
+                else:
+                    return {
+                        "path": None,
+                        "everExists": False,
+                    }
+
     def __init__(self, dflDir):
+        self.meta = None
+        if profile is not None:
+            self.userVideosPath = os.path.join(profile, "Videos", "face-videos")
+        self.myAppData = None
+        if appdatas is not None:
+            self.myAppData = os.path.join(appdatas, "rotocanvas")
+        self.userMetaName = "dfl.json"
+
         self.setDFLDir(dflDir)
+        self.loadLabDefaults() # sets self.meta
+        self.userVideosPath = None
+
         self._cmdDone = True
         self._runCmd = None
 
@@ -99,28 +839,86 @@ class DFL:
         self._continuePrompts = []
         self._continuePrompts.append("to continue")
         self._continuePrompts.append("Done.")
+        self.logName = "pyrotocanvas-dfl.log"
 
     def setDFLDir(self, dflDir):
         self._dflDir = dflDir
         self.generateEnv()
 
-    def any_in(self, needles, haystack):
+    def isInLab(self, path):
+        if platform.system() == "Windows":
+            wsLower = self.env["WORKSPACE"].lower()
+            return path.lower().startswith(wsLower)
+        return path.startswith(self.env["WORKSPACE"])
+
+    @staticmethod
+    def any_in(needles, haystack):
         for needle in needles:
             if needle in haystack:
                 return True
         return False
 
+    @staticmethod
+    def getContainers():
+        """
+        Get the container list to determine what dict keys to use and
+        whether the keys passed to the function are correct.
+        """
+        return [DLM.C_DIR, DLM.C_FILE]
+
+    @staticmethod
+    def getPlaces():
+        """
+        'lab' means in DeepFaceLabs directory (or subdirectories).
+        'storage' means in anywhere else
+        """
+        return [DLM.PLACE_LAB, DLM.PLACE_STORAGE]
+
+    @staticmethod
+    def getForms():
+        """
+        Get the form list to determine what dict keys to use and
+        whether the keys passed to the function are correct.
+        """
+        return [DLM.FORM_ORIGINAL, DLM.FORM_ALIGNED, DLM.FORM_MERGED]
+
+    @staticmethod
+    def getRoles():
+        """
+        Get the form list to determine what dict keys to use and
+        whether the keys passed to the function are correct.
+        src is the face you want to place
+        dst is the face you want to replace
+        """
+        return ['src', 'dst']
+
+    def getDtPathString(self, dateSep="-", dtSep="_", timeSep=".."):
+        return getDtString(dateSep=dateSep, dtSep=dtSep,
+                           timeSep=timeSep)
+
+    def getDtString(self, dateSep="-", dtSep=" ", timeSep=":"):
+        fmt = '%Y{ds}%m{ds}%d{dts}%H{ts}%M{ts}%S'.format(
+            ds=dateSep,
+            dts=dtSep,
+            ts=timeSep
+        )
+        nowS = datetime.now().strftime(fmt)
+        return nowS
+
     def generateEnv(self):
         """
-        Mimic DeepFaceLab\_internals\setenv.bat but generate
+        Mimic DeepFaceLab\_internal\setenv.bat but generate
         self.env instead of setting environment variables.
         Always use getenv to use the variables to run another file.
+
+        Set self._dflDir before running this. such as via the
+        constructor.
         """
         env = {}
         self.env = env
 
         # Base env
-        env["~dp0"] = dflDir  # if playing this back, do os.chdir(v)
+        env["~dp0"] = self._dflDir  # if playing back, do os.chdir(v)
         if not env["~dp0"].endswith(os.sep):
             env["~dp0"] += os.sep
         env["INTERNAL"] = os.path.join(self._dflDir, "_internal")
@@ -211,6 +1009,29 @@ class DFL:
             self._morePaths + [os.environ["PATH"]]
         )
         self._chars = ""
+        self.ws = DFLWorkspace(self, env["WORKSPACE"]) # yes, send self
+        if self.myAppData is not None:
+            self.userMetaPath = os.path.join(self.myAppData,
+                                             self.userMetaName)
+
+    def saveLabMeta(self):
+        self.ws.save()
+
+    def loadLabDefaults(self):
+        if self.meta is None:
+            self.meta = {}
+        self.meta["src_full"] = None
+        self.meta["src_face"] = None
+        self.meta["dst_full"] = None
+        self.meta["dst_face"] = None
+
+    def loadLabMeta(self):
+        self.loadLabDefaults()
+        if os.path.isfile(self._dflDir):
+            tmp = json.load(self._dflDir)
+            for k,v in tmp.items():
+                if len(k.strip()) > 0:
+                    self.meta[k] = v
 
 
     def train(self, model, baseModel="SAEHD", gpu="0"):
@@ -381,7 +1202,7 @@ class DFL:
                 self._mode = None
                 self._choices = None
                 self._commands = None
-        elif self.any_in(self._continuePrompts, line):
+        elif DLM.any_in(self._continuePrompts, line):
             self._enter_cmd("")
             print("[dfl.py] tried to continue (entered newline)")
             # See <https://stackoverflow.com/questions/17173946/
@@ -600,50 +1421,15 @@ class DFL:
             else:
                 os.environ[k] = str(v)
 
-
     def help(self):
-        return dfl_help_fmt.format(dflDir)
-
+        return dfl_help_fmt.format(self._dflDir)
 
     def help_install(self):
-        return dfl_install_help_fmt.format(dflDir)
+        return dfl_install_help_fmt.format(self._dflDir)
 
-    def choose_param(self, name, videoPath):
-        if videoPath is None:
-            raise ValueError("videoPath was None in DFL choose_param.")
-        dfSource = os.path.join(self.env["WORKSPACE"], "data_src.mp4")
-        dfDest = os.path.join(self.env["WORKSPACE"], "data_dst.mp4")
-        copyAs = None
-        if name == "destination":
-            copyAs = dfDest
-        elif name == "source":
-            copyAs = dfSource
-        else:
-            raise ValueError("{} is an unknown DeepFace Lab Param--choose"
-                               ": {}".format(name, dfl_params.keys()))
-        if os.path.isfile(copyAs):
-            os.remove(copyAs)
-        shutil.copy(videoPath, copyAs)
-        videoName = os.path.split(videoPath)[1]
-        print("[dfl.py] * wrote {} to {}.".format(videoName, copyAs))
+    def isAcceptableVideo(self, path):
+        dotExts = [".mp4", ".m4v"]
+        if not path[-4:].lower() in dotExts:
+            return False
+        return True
 
-
-    def choose_param_in(self, name, video_dir):
-        if not os.path.isdir(self.env["WORKSPACE"]):
-            print()
-            print(self.help())
-            print()
-            raise RuntimeError("DeepFace Lab doesn't exist here: {}"
-                               "".format(self.env["WORKSPACE"]))
-        videoPath = None
-        paths = []
-        for sub in os.listdir(video_dir):
-            subPath = os.path.join(video_dir, sub)
-            if not subPath.lower().endswith(".mp4"):
-                continue
-            videoPath = subPath
-            break
-        if videoPath is None:
-            raise ValueError("There was no .mp4 to select in {}"
-                             "".format(video_dir))
-        self.choose_param(name, videoPath)
