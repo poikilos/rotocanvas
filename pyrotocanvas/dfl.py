@@ -486,9 +486,9 @@ class DLM:
     """
     This is a DFL manager.
     """
-    PLACE_STORAGE = 'storage'
-    PLACE_LAB = 'lab'
-    # ^ DLM.getPlaces must list PLACE_*
+    ZONE_STORAGE = 'storage'
+    ZONE_LAB = 'lab'
+    # ^ DLM.getZones must list ZONE_*
     ROLE_SRC = 'src'
     ROLE_DST = 'dst'
     # ^ DLM.getRoles must list ROLE_*
@@ -867,12 +867,12 @@ class DLM:
         return [DLM.C_DIR, DLM.C_FILE]
 
     @staticmethod
-    def getPlaces():
+    def getZones():
         """
         'lab' means in DeepFaceLabs directory (or subdirectories).
         'storage' means in anywhere else
         """
-        return [DLM.PLACE_LAB, DLM.PLACE_STORAGE]
+        return [DLM.ZONE_LAB, DLM.ZONE_STORAGE]
 
     @staticmethod
     def getForms():
