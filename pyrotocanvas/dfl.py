@@ -129,6 +129,19 @@ class DLMItem:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def __str__(self):
+        s = self.orig
+        if s is None:
+            s = self.path
+        if self.drop is not None:
+            if platform.system() == "Windows":
+                if s.lower().startswith(self.drop.lower()):
+                    s = [len(self.drop):]
+            else:
+                if s.startswith(self.drop):
+                    s = [len(self.drop):]
+        return s
+
     def getDict(self):
         item = {}
         for name in DLMItem.SAVES:
@@ -342,15 +355,15 @@ class DLMWorkspace:
                             if atI >= 0:
                                 print("WARNING: overriding item\n {}"
                                       " with\n {}.".format(
-                                          self.items[atI].getDict(),
-                                          item.getDict()
+                                          self.items[atI],
+                                          item
                                       ))
                                 self.items[atI].setFromDict(
                                     item.getDict()
                                 )
                             else:
                                 print("+Adding item: {}"
-                                      "".format(item.getDict()))
+                                      "".format(item))
                                 self.items.append(item)
                         else:
                             print("+Adding warning: {}".format(error))
@@ -475,7 +488,7 @@ class DLMWorkspace:
             #   orig param was not None.
             items = self.getRoleItems(role)
             item = DLMItem(self.dlm, path, role=role)
-            print("  * trying to add item {}...".format(item.getDict()))
+            print("  * trying to add item {}...".format(item))
             if len(items) > 0:
                 if len(items) > 1:
                     print("WARNING: Getting the item attributes is"
@@ -493,7 +506,7 @@ class DLMWorkspace:
                                   " will not be saved upon closing the"
                                   " workspace."
                                   "".format(k, DLMItem.SAVES))
-                    print("    * item became {}".format(item.getDict()))
+                    print("    * item became {}".format(item))
             foundCont = DLM.C_DIR
             if orig is not None:
                 # We are adding a new one in this case (from a workspace
