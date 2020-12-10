@@ -47,7 +47,7 @@ Visit https://github.com/iperov/DeepFaceLab and scroll down to
 from https://dev.deluge-torrent.org/wiki/Download.
 """
 
-dfl_help_fmt = """
+dlm_help_fmt = """
 After choosing a source and destination, you must run each batch
 file in {} in the numbered order.
 """
@@ -73,13 +73,13 @@ def __nonBlockReadline(output):
     except:
         return ''
 
-# DFLItem_members = ['path', 'orig', 'face', 'role', 'form', 'mask',
+# DLMItem_members = ['path', 'orig', 'face', 'role', 'form', 'mask',
 #                    'hide', 'temp', 'drop']
 
 
 
 
-class DFLItem:
+class DLMItem:
     SAVES = ['path', 'orig', 'face', 'role', 'form', 'mask', 'hide',
              'temp', 'drop']
     MEMBER_HELP = {
@@ -103,7 +103,7 @@ class DFLItem:
                 return True
         return False
 
-    def __init__(self, dfl, path, **kwargs):
+    def __init__(self, dlm, path, **kwargs):
         """
         Generating an item using the workspace is the normal way since
         the workspace knows the context and can set the members
@@ -119,11 +119,11 @@ class DFLItem:
                 be a directory equivalent to the video filename but
                 without an extension.
         """
-        if dfl is None:
+        if dlm is None:
             raise ValueError("You must specify a pyrotocanvas.dfl.DLM()"
                              " instance.")
-        self.dfl = dfl
-        for name in DFLItem.SAVES:
+        self.dlm = dlm
+        for name in DLMItem.SAVES:
             setattr(self, name, None)
         self.hide = False
         for k, v in kwargs.items():
@@ -131,12 +131,12 @@ class DFLItem:
 
     def getDict(self):
         item = {}
-        for name in DFLItem.SAVES:
+        for name in DLMItem.SAVES:
             item[name] = getattr(self, name)
         return item
 
     def isInLab(self):
-        return self.dfl.isInLab(self.path)
+        return self.dlm.isInLab(self.path)
 
     def setFromItem(self, item, wipe=False):
         """
@@ -148,7 +148,7 @@ class DFLItem:
                 SAVES. If false, a member will only be set to None if
                 the corresponding member in item is present
         """
-        for name in DFLItem.SAVES:
+        for name in DLMItem.SAVES:
             try:
                 got = getattr(item, name)
                 setattr(self, name, got)
@@ -166,7 +166,7 @@ class DFLItem:
                 SAVES. If false, a member will only be set to None if
                 the corresponding member in item is present
         """
-        for name in DFLItem.SAVES:
+        for name in DLMItem.SAVES:
             try:
                 got = item[name]
                 setattr(self, name, got)
@@ -175,21 +175,128 @@ class DFLItem:
                     setattr(self, name, None)
 
     def copy(self):
-        item = DFLItem(self.dfl, self.path)
-        for name in DFLItem.SAVES:
+        item = DLMItem(self.dlm, self.path)
+        for name in DLMItem.SAVES:
             setattr(item, name, getattr(self, name))
         return item
 
 
 
-class DFLWorkspace:
+class DLMWorkspace:
+    LOG_NAME = "pyrotocanvas-dlm.log"
 
-    def __init__(self, dfl, path):
-        if dfl is None:
+    def __init__(self, dlm, path):
+        if dlm is None:
             raise ValueError("You must specify a pyrotocanvas.dfl.DLM()"
                              " instance.")
-        self.path = path
-        self.items = []
+        self.path = path  # must be set before load
+        self.dlm = dlm  # must be set before load
+        self.load()  # always sets items
+
+    def pop(self, path):
+        return self.peek(path, remove=True)
+
+    def peek(self, path, remove=False):
+        """
+        Remove the item from the metadata.
+
+        returns:
+        The removed item, or None if the path doesn't exist in the
+        workspace.
+        """
+        for i in range(len(self.items)):
+            item = self.items[i]
+            if item.path == path:
+                if remove:
+                    del self.items[i]
+                    self.save()
+                return item
+        return None
+
+    def push(self, item, fileOp):
+        """
+        Sequential arguments:
+        fileOp -- 'move' or 'copy' the actual file (item.path)
+        """
+        ok = False
+        error = None
+        if item.role is None:
+            return False, "The item must have a role before pushing it"
+        role = item.role
+        if role not in DLM.getRoles():
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
+        path1 = item.path
+        container = None
+        if os.path.isfile(path1):
+            container = DLM.C_FILE
+        elif os.path.isdir(path1):
+            container = DLM.C_DIR
+        else:
+            return False, "\"{}\" doesn't exist.".format(item.path)
+        if self.isInLab():
+            got = self.getRoleItems(role)
+            if len(got) > 0:
+                return False, ("You can only have one {} in the lab."
+                               "".format(role))
+        newExt = os.path.splitext(item.path)[1]
+        paths = []
+        for form in DLM.getForms():
+            formPaths, innerError = self.formPaths(item.role, form,
+                                                   container)
+            print("  * checking forms: {}".format(formPaths))
+            if formPaths is None:
+                print("    formPaths warning: {}".format(innerError))
+                continue
+            for formPath in formPaths:
+                # print("    * checking for {}".format(formPath))
+                # if DLM.existsAs(formPath, container):
+                # ^ Do NOT check if it exists. It where the item will go
+                if os.path.splitext(formPath)[1] == newExt:
+                    paths.append(formPath)
+                else:
+                    print("WARNING: skipping due to different"
+                          " extension: {}".format(formPath))
+        if len(paths) > 1:
+            raise RuntimeError("multiple targets: {}".format(paths))
+        elif len(paths) < 1:
+            raise RuntimeError("There is no possible target when the"
+                               " role is {} and the container is {}"
+                               " ".format(item.role, container))
+        path2 = paths[0]
+        logPath = self.logPath
+        logLine = (
+            ": {} \"{}\" \"{}\"".format(fileOp, path1, path2)
+        )
+        if fileOp == 'move':
+            shutil.move(path1, path2)
+            print("* {} \"{}\" \"{}\"".format(fileOp, path1, path2))
+            item.path = path2
+            self.items.append(item)
+            with open(logPath, 'a') as log:
+                log.write(DLM.getDtString() + logLine)
+            print("* logged {}: \"{}\"".format(fileOp, logPath))
+        elif fileOp == 'copy':
+            shutil.copy(path1, path2)
+            item.path = path2
+            self.items.append(item)
+            with open(logPath, 'a') as log:
+                log.write(DLM.getDtString() + logLine)
+            print("* logged {}: \"{}\"".format(fileOp, logPath))
+        else:
+            msg = ("* WARNING: nothing done for \"{}\" \"{}\" since {}"
+                   " isn't 'move'/'copy'".format(path1, path2, fileOp))
+            error = msg
+            print(msg)
+        ok = self.save()
+        return ok, error
+
+    def findByPath(self, path):
+        for i in range(len(self.items)):
+            item = self.items[i]
+            if path == item.path:
+                return i
+        return -1
 
     def populate(self, orig=None, role=None):
         """
@@ -209,17 +316,48 @@ class DFLWorkspace:
             roles = DLM.getRoles()
         else:
             if role not in DLM.getRoles():
-                raise ValueError("role must be one of: {}"
-                                 "".format(DLM.getRoles()))
+                raise ValueError("role must be one of: {} not {}"
+                                 "".format(DLM.getRoles(), role))
         for role in roles:
             for form in DLM.getSteps():
-                for container in DFL.getContainers():
-                    item, error = self.generateItem(
-                        role,
-                        form,
-                        container,
-                        orig=orig
-                    )
+                for container in DLM.getContainers():
+                    try:
+                        item, error = self.generateItem(
+                            role,
+                            form,
+                            container,
+                            orig=orig
+                        )
+                        if item is None:
+                            # the role+form+container wouldn't ever
+                            # exist.
+                            continue
+                        if not DLM.existsAs(item.path, container):
+                            if orig is not None:
+                                raise ValueError("{} doesn't exist"
+                                                 "".format(item.path))
+                            continue
+                        if item is not None:
+                            atI = self.findByPath(item.path)
+                            if atI >= 0:
+                                print("WARNING: overriding item\n {}"
+                                      " with\n {}.".format(
+                                          self.items[atI].getDict(),
+                                          item.getDict()
+                                      ))
+                                self.items[atI].setFromDict(
+                                    item.getDict()
+                                )
+                            else:
+                                print("+Adding item: {}"
+                                      "".format(item.getDict()))
+                                self.items.append(item)
+                        else:
+                            print("+Adding warning: {}".format(error))
+                    except ValueError:
+                        # Do nothing--if it doesn't exist, that's ok
+                        # in this case.
+                        pass
                     """
                     info = DLM.formInfo(role, form, container)
                     if not info['everExists']:
@@ -232,7 +370,8 @@ class DFLWorkspace:
                                                " (got None)")
                         results.append(result)
                     """
-        return results
+        self.save()
+        return True
 
     def getRoleItems(self, role):
         """
@@ -243,8 +382,8 @@ class DFLWorkspace:
         role -- only search a certain role
         """
         if role not in DLM.getRoles():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getRoles()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
         results = []
         for item in self.items:
             if item.role == role:
@@ -261,8 +400,8 @@ class DFLWorkspace:
         role -- only search a certain role
         """
         if role not in DLM.getRoles():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getRoles()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
         for item in self.items:
             if item.role == role:
                 try:
@@ -286,14 +425,14 @@ class DFLWorkspace:
         other[DLM.C_DIR] = DLM.C_FILE
         other[DLM.C_FILE] = DLM.C_DIR
         if role not in DLM.getRoles():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getRoles()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
         if form not in DLM.getForms():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getForms()))
+            raise ValueError("form must be one of: {} not {}"
+                             "".format(DLM.getForms(), form))
         if container not in DLM.getContainers():
-            raise ValueError("container must be one of: {}"
-                             "".format(DLM.getContainers()))
+            raise ValueError("container must be one of: {} not {}"
+                             "".format(DLM.getContainers(), container))
         paths = None
         error = None
 
@@ -320,8 +459,8 @@ class DFLWorkspace:
             paths, error = self.formPaths(role, form, container)
         if paths is None:
             # examples:
-            # - If role is DLM.DFL_SRC, there should be no
-            #   case where form is merged (only DLM.DFL_DST ever gets
+            # - If role is DLM.ROLE_SRC, there should be no
+            #   case where form is merged (only DLM.ROLE_DST ever gets
             #   merged).
             # - If container is DLM.C_FILE, there should be no
             #   case where form is aligned (only images ever get
@@ -330,8 +469,13 @@ class DFLWorkspace:
             raise ValueError(error)
             # return None, error
         for path in paths:
+            # The only reason this is a loop is that there can be more
+            # than one file extention for results.
+            # - There will be only one path in paths as per above if the
+            #   orig param was not None.
             items = self.getRoleItems(role)
-            item = DFLItem(self.dfl, path)
+            item = DLMItem(self.dlm, path, role=role)
+            print("  * trying to add item {}...".format(item.getDict()))
             if len(items) > 0:
                 if len(items) > 1:
                     print("WARNING: Getting the item attributes is"
@@ -339,20 +483,33 @@ class DFLWorkspace:
                           " item with the {} role in \"{}\"'s metadata"
                           "".format(role, self.path))
                 else:
-                    for k, v in items[0].items():
+                    for k, v in items[0].getDict().items():
                         setattr(item, k, v)
-                        if k not in DFLItem.SAVES:
+                        if k not in DLMItem.SAVES:
+                            # This case should never occur if
+                            # getDict is called as the basis for the
+                            # loop.
                             print("WARNING: {} is not one of {} so it"
                                   " will not be saved upon closing the"
                                   " workspace."
-                                  "".format(k, DFLItem.SAVES))
+                                  "".format(k, DLMItem.SAVES))
+                    print("    * item became {}".format(item.getDict()))
             foundCont = DLM.C_DIR
+            if orig is not None:
+                # We are adding a new one in this case (from a workspace
+                # not in the lab), so the path and origin are the same:
+                item.orig = orig
+                item.path = path
             if os.path.isfile(path):
                 foundCont = DLM.C_FILE
                 if container == DLM.C_FILE:
+                    if item.path is None:
+                        item.path = path
                     return item, None
             else:
                 if container == DLM.C_DIR:
+                    if item.path is None:
+                        item.path = path
                     return item, None
         error = None
         if orig is not None:
@@ -372,14 +529,14 @@ class DFLWorkspace:
                 form.
         """
         if role not in DLM.getRoles():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getRoles()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
         if form not in DLM.getForms():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getForms()))
+            raise ValueError("form must be one of: {} not {}"
+                             "".format(DLM.getForms(), form))
         if container not in DLM.getContainers():
-            raise ValueError("container must be one of: {}"
-                             "".format(DLM.getContainers()))
+            raise ValueError("container must be one of: {} not {}"
+                             "".format(DLM.getContainers(), container))
 
         item = None
         error = None
@@ -391,7 +548,8 @@ class DFLWorkspace:
             pass
         return item is not None
         """
-        path, error = self.formPaths(role, form, container)
+        paths, error = self.formPaths(role, form, container)
+        for path in paths:
         if path is None:
             # examples:
             # - If role is DLM.ROLE_SRC, there should be no
@@ -432,21 +590,21 @@ class DFLWorkspace:
         - an error string (or None)
         """
         if role not in DLM.getRoles():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getRoles()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
         if form not in DLM.getForms():
-            raise ValueError("role must be one of: {}"
-                             "".format(DLM.getForms()))
+            raise ValueError("form must be one of: {} not {}"
+                             "".format(DLM.getForms(), form))
         if container not in DLM.getContainers():
-            raise ValueError("container must be one of: {}"
-                             "".format(DLM.getContainers()))
+            raise ValueError("container must be one of: {} not {}"
+                             "".format(DLM.getContainers(), container))
         ws = self.path
         roleSub = None
 
         if role == DLM.ROLE_DST:
-            roleSub = os.path.join(ws, 'data_src')
-        elif role == DLM.ROLE_SRC:
             roleSub = os.path.join(ws, 'data_dst')
+        elif role == DLM.ROLE_SRC:
+            roleSub = os.path.join(ws, 'data_src')
         else:
             raise ValueError('role must be one of: {}'
                              ''.format(DLM.getRoles()))
@@ -473,18 +631,79 @@ class DFLWorkspace:
         return paths, None
 
     def isInLab(self):
-        return self.dfl.isInLab(self.path)
+        return self.dlm.isInLab(self.path)
+
+    def load(self):
+        path  = os.path.join(self.path, DLM.WS_META_NAME)
+        if not os.path.isfile(path):
+            return False
+        self.logPath = os.path.join(self.path, DLMWorkspace.LOG_NAME)
+        meta = {}
+        with open(path, 'r') as ins:
+            meta = json.load(ins)
+        if meta.get('items') is None:
+            meta['items'] = []
+            print("WARNING: There is no items member in \"{}\"."
+                  "".format(path))
+        else:
+            print("* INFO: \"{}\" has {} item(s): {}."
+                  "".format(path, len(meta['items']), meta['items']))
+        itemDicts = meta['items']
+        self.items = []
+        for itemDict in itemDicts:
+            itemPath = itemDict.get('path')
+            if itemPath is None:
+                print("ERROR: an item in {} is missing a path."
+                      "".format(path))
+                continue
+                # if not self.isInLab():
+                #     print("ERROR: an item in {} is missing a path."
+                #           "".format(path))
+                #    continue
+                """
+                # Repair the metadata using known paths.
+                itemRole = itemDict.get('role')
+                if itemRole is None:
+                    print("ERROR: an item in {} is missing a path"
+                          " & role.".format(path))
+                    continue
+                itemForm = itemDict.get('form')
+                itemForms = [itemForm]
+                if itemForm is None:
+                    itemForms = DLM.getForms()
+                for form in itemForms:
+                    for formContainer in DLM.getContainers():
+                        formPaths = self.formPaths(
+                            itemRole,
+                            itemForm,
+                            container
+                        )
+                        # do the rest here if you dare
+                """
+
+            if itemPath is None:
+                print("ERROR: an item in {} is missing a path."
+                      "".format(path))
+                continue
+            item = DLMItem(self.dlm, itemPath)
+            item.setFromDict(itemDict)
+            self.items.append(item)
+        return True
 
     def save(self):
-        json.dump(
-            self.meta,
-            os.path.join(self.path, DFLWorkspace.WS_META_NAME)
-        )
+        path  = os.path.join(self.path, DLM.WS_META_NAME)
+        meta = {}
+        meta['items'] = []
+        for item in self.items:
+            meta['items'].append(item.getDict())
+        with open(path, 'w') as outs:
+            json.dump(meta, outs, indent=2)
+        return True
 
 class DLM:
 
     """
-    This is a DFL manager.
+    This is a DLM manager.
     """
     ZONE_STORAGE = 'storage'
     ZONE_LAB = 'lab'
@@ -501,7 +720,7 @@ class DLM:
     FORM_MERGED = 'merged' # isfile implies "merge to ..." step
     # ^ DLM.getForms must list FORM_*
     FORMS_HELP = {
-        'original': "not modified by DFL",
+        'original': "not modified by DLM",
         'aligned': "faceset extract is complete",
         'merged': "if directory, then images, if file, then result.mp4",
     }
@@ -714,10 +933,24 @@ class DLM:
         "7) merge SAEHD.bat",
     ]
 
-    WS_META_NAME = "dlm-lab.json"
+    WS_META_NAME = "dlm-workspace.json"
+    LAB_META_NAME = "dlm-lab.json"
 
     @staticmethod
-    def getSteps(self):
+    def existsAs(path, container):
+        if container not in DLM.getContainers():
+            raise ValueError("container must be one of: {} not {}"
+                             "".format(DLM.getContainers(), container))
+        if container == DLM.C_DIR:
+            return os.path.isdir(path)
+        elif container == DLM.C_FILE:
+            return os.path.isfile(path)
+        else:
+            raise NotImplementedError("This should never happen.")
+        return False
+
+    @staticmethod
+    def getSteps():
         """
         Get the steps of the DLM process.
         DLM.FORM_ORIGINAL:
@@ -737,14 +970,14 @@ class DLM:
     @staticmethod
     def formInfo(role, form, container):
         if role not in DLM.getRoles():
-            raise ValueError("{} is not a role. Pick from: {}"
-                             "".format(role, DLM.getRoles()))
-        if form not in DLM.getSteps():
-            raise ValueError("{} is not a form. Pick from: {}"
-                             "".format(form, DLM.getSteps()))
+            raise ValueError("role must be one of: {} not {}"
+                             "".format(DLM.getRoles(), role))
+        if form not in DLM.getForms():
+            raise ValueError("form must be one of: {} not {}"
+                             "".format(DLM.getForms(), form))
         if container not in DLM.getContainers():
-            raise ValueError("{} is not a form. Pick from: {}"
-                             "".format(form, DLM.getContainers()))
+            raise ValueError("container must be one of: {} not {}"
+                             "".format(DLM.getContainers(), container))
         ws = self.env['WORKSPACE']
         if form == DLM.FORM_ORIGINAL:
             if container == DLM.C_FILE:
@@ -817,7 +1050,7 @@ class DLM:
         self.myAppData = None
         if appdatas is not None:
             self.myAppData = os.path.join(appdatas, "rotocanvas")
-        self.userMetaName = "dfl.json"
+        self.userMetaName = "dlm.json"
 
         self.setDFLDir(dflDir)
         self.loadLabDefaults() # sets self.meta
@@ -839,7 +1072,7 @@ class DLM:
         self._continuePrompts = []
         self._continuePrompts.append("to continue")
         self._continuePrompts.append("Done.")
-        self.logName = "pyrotocanvas-dfl.log"
+        self.logName = "pyrotocanvas-dlm.log"
 
     def setDFLDir(self, dflDir):
         self._dflDir = dflDir
@@ -892,11 +1125,13 @@ class DLM:
         """
         return ['src', 'dst']
 
-    def getDtPathString(self, dateSep="-", dtSep="_", timeSep=".."):
-        return getDtString(dateSep=dateSep, dtSep=dtSep,
-                           timeSep=timeSep)
+    @staticmethod
+    def getDtPathString(dateSep="-", dtSep="_", timeSep=".."):
+        return DLM.getDtString(dateSep=dateSep, dtSep=dtSep,
+                              timeSep=timeSep)
 
-    def getDtString(self, dateSep="-", dtSep=" ", timeSep=":"):
+    @staticmethod
+    def getDtString(dateSep="-", dtSep=" ", timeSep=":"):
         fmt = '%Y{ds}%m{ds}%d{dts}%H{ts}%M{ts}%S'.format(
             ds=dateSep,
             dts=dtSep,
@@ -1009,7 +1244,8 @@ class DLM:
             self._morePaths + [os.environ["PATH"]]
         )
         self._chars = ""
-        self.ws = DFLWorkspace(self, env["WORKSPACE"]) # yes, send self
+        self.ws = DLMWorkspace(self, env["WORKSPACE"]) # yes, send self
+        self.ws.populate()
         if self.myAppData is not None:
             self.userMetaPath = os.path.join(self.myAppData,
                                              self.userMetaName)
@@ -1422,7 +1658,7 @@ class DLM:
                 os.environ[k] = str(v)
 
     def help(self):
-        return dfl_help_fmt.format(self._dflDir)
+        return dlm_help_fmt.format(self._dflDir)
 
     def help_install(self):
         return dfl_install_help_fmt.format(self._dflDir)
