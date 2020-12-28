@@ -1099,6 +1099,7 @@ class DLM:
                     }
 
     def __init__(self, dflDir):
+        self._errors = []
         self.meta = None
         if profile is not None:
             self.userVideosPath = os.path.join(profile, "Videos", "face-videos")
@@ -1107,8 +1108,6 @@ class DLM:
             self.myAppData = os.path.join(appdatas, "rotocanvas")
         self.userMetaName = "dlm.json"
 
-        self.setDFLDir(dflDir)
-        self.loadLabDefaults() # sets self.meta
         self.userVideosPath = None
 
         self._cmdDone = True
@@ -1128,6 +1127,18 @@ class DLM:
         self._continuePrompts.append("to continue")
         self._continuePrompts.append("Done.")
         self.logName = "pyrotocanvas-dlm.log"
+
+        try:
+            self.setDFLDir(dflDir)
+        except ValueError as ex:
+            print(ex)
+            self._errors.append("{}".format(ex))
+        self.loadLabDefaults() # sets self.meta
+
+    def popErrors(self):
+        errors = self._errors
+        self._errors = []
+        return errors
 
     def setDFLDir(self, dflDir):
         self._dflDir = dflDir
