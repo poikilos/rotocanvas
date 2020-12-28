@@ -1,2 +1,4 @@
 
 *.pyc
+/tests/data/upscaling-tests/Demo_Reel_2000_clip-RA9-612x468-nearest-50%_jpg/originals/scaled/
+/Untitled*.rotocanvas

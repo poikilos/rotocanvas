@@ -6,6 +6,12 @@ This project may serve as a backend or companion or replacement for the
 where you can find more information about the goals and scope of the
 project.
 
+## Requires
+- opencv for certain features such as AI super resolution
+  - See tests/rcsource_tests.py under `except ImportError` for how to
+    install it.
+- pretrained models
+
 
 ## Tasks
 - [ ] for upscaling VHS (tested using Rebel Assault IX), use one of the
@@ -32,7 +38,10 @@ cp -r models-DF2K models-DF2K_JPEG $HOME/bin/realsr-ncnn-vulkan-models
 cp realsr-ncnn-vulkan $HOME/bin
 ```
   -<https://linuxreviews.org/RealSR#Installation>
-
+- [ ] Automatically download models from [ONNX Model
+  Zoo](https://github.com/onnx/models) (OpenCV allows loading ONNX
+  models via `cv2.dnn.readNetFromONNX(`--See [Super Resolution with
+  OpenCV](https://bleedai.com/super-resolution-with-opencv/))
 
 ## Authors
 

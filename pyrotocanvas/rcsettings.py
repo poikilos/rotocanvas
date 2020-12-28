@@ -17,14 +17,14 @@ class RCSettings:
         if os.path.isdir(os.path.join(parentPath, "opencvenv")):
             self.thisPython = os.path.join(reposPath, "opencvenv",
                                            "bin", "python")
-            print("Using python in virtual env for opencv: {}"
-                  "".format(self.thisPython))
+            # print("Using python in virtual env for opencv: {}"
+            # #     "".format(self.thisPython))
             self._enable_opencv = True
         elif os.path.isdir(os.path.join(tryLocal, "opencvenv")):
             self.thisPython = os.path.join(tryLocal, "opencvenv",
                                            "bin", "python")
-            print("Using python in virtual env for opencv: {}"
-                  "".format(self.thisPython))
+            # print("Using python in virtual env for opencv: {}"
+            # #     "".format(self.thisPython))
             self._enable_opencv = True
         else:
             try:
@@ -40,7 +40,7 @@ class RCSettings:
             "super_res_image_save.py"
         )
         if not os.path.isfile(self.thisSRPy):
-            raise RuntimeError("Missing {}".format(self.thisSRPy))
+            print("WARNING: Missing {}".format(self.thisSRPy))
         self.thisScalePy = os.path.join(
             self.modulePath,
             "fix_ratio.py"
@@ -82,6 +82,14 @@ class RCSettings:
         #   examples/jurassic_park.png
         # $PY $CMD --model models/LapSRN_x8.pb --image \
         #   examples/zebra.png
+
+
+    def addModel(self, path):
+        if not os.path.isfile(path):
+            raise ValueError("The path for addModel isn't a file or"
+                             " doesn't exist: {}".format(path))
+        self.scalingModels.append(path)
+
 
     def assertOpenCV(self):
         if not self._enable_opencv:

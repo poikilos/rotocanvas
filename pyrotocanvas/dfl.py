@@ -31,14 +31,26 @@ def enqueue_output(out, state, isStdErr):
 # edited Aug 6 '18 at 15:02 by ankostis
 
 """
-profile = None
-appdatas = None
-if platform.system() == "Windows":
-    profile = os.environ.get("USERPROFILE")
-    appdatas = os.path.join(profile, "AppData", "Local")
-else:
-    profile = os.environ.get("HOME")
-    appdatas = os.path.join(profile, ".config")
+
+try:
+    from pyrotocanvas.rcproject import RCProject
+    enableDLM = True
+except ModuleNotFoundError:
+    mod_paths = ["C:\\Users\\Owner\\GitHub\\pyrotocanvas\\pyrotocanvas"]
+    for modules in mod_paths:
+        if os.path.isdir(modules):
+            sys.path.append(modules)
+            break
+    if modules is None:
+        print("You do not have pyrotocanvas in the path nor in any of"
+              " the following known locations: {}".format(mod_paths))
+    else:
+        print("[choose_dfl_dst] * using {} for modules."
+              "".format(modules))
+        from dfl import DLMItem
+        from dfl import DLM
+        enableDLM = True
+
 
 dfl_install_help_fmt = """
 You must install DeepFace Lab such that {} exists.
@@ -1101,11 +1113,9 @@ class DLM:
     def __init__(self, dflDir):
         self._errors = []
         self.meta = None
-        if profile is not None:
-            self.userVideosPath = os.path.join(profile, "Videos", "face-videos")
-        self.myAppData = None
-        if appdatas is not None:
-            self.myAppData = os.path.join(appdatas, "rotocanvas")
+        self.userVideosPath = os.path.join(RCProject.PROFILE, "Videos",
+                                           "face-videos")
+        self.myAppData = RCProject.RC_APPDATA
         self.userMetaName = "dlm.json"
 
         self.userVideosPath = None
@@ -1129,7 +1139,9 @@ class DLM:
         self.logName = "pyrotocanvas-dlm.log"
 
         try:
-            self.setDFLDir(dflDir)
+            result = self.setDFLDir(dflDir)
+            if result is not None:
+                self._errors.append(result)
         except ValueError as ex:
             print(ex)
             self._errors.append("{}".format(ex))
@@ -1142,7 +1154,7 @@ class DLM:
 
     def setDFLDir(self, dflDir):
         self._dflDir = dflDir
-        self.generateEnv()
+        return self.generateEnv()
 
     def isInLab(self, path):
         if platform.system() == "Windows":
@@ -1219,6 +1231,8 @@ class DLM:
         self.env = env
 
         # Base env
+        if self._dflDir is None:
+            return "The _dflDir does not exist: {}".format(self._dflDir)
         env["~dp0"] = self._dflDir  # if playing back, do os.chdir(v)
         if not env["~dp0"].endswith(os.sep):
             env["~dp0"] += os.sep
@@ -1315,6 +1329,7 @@ class DLM:
         if self.myAppData is not None:
             self.userMetaPath = os.path.join(self.myAppData,
                                              self.userMetaName)
+        return None
 
     def saveLabMeta(self):
         self.ws.save()

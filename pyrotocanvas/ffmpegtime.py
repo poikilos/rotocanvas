@@ -2,7 +2,7 @@ class FFMPEGTime:
     def __init__(self, timeStr, fps):
         self.parts = timeStr.split(":")
         # print("TimeStr: {}".format(timeStr))
-        print("Parts: {}".format(self.parts))
+        # print("Parts: {}".format(self.parts))
         self.fps = fps
         self._fpsF = None
         self._FParts = None
