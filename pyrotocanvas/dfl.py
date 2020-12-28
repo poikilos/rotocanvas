@@ -133,14 +133,18 @@ class DLMItem:
         s = self.orig
         if s is None:
             s = self.path
+            # print("[dfl.py DLMItem __str__]  - s is the path")
         if self.drop is not None:
+            # print("[dfl.py DLMItem __str__]  - s is the drop")
             if platform.system() == "Windows":
                 if s.lower().startswith(self.drop.lower()):
-                    s = [len(self.drop):]
+                    s = s[len(self.drop):]
             else:
                 if s.startswith(self.drop):
-                    s = [len(self.drop):]
-        return s
+                    s = s[len(self.drop):]
+        # print("[dfl.py DLMItem __str__]  - s is \"{}\"".format(s))
+        return "{}".format(s)
+        # ^ must return a string--None causes exception on using __str__
 
     def getDict(self):
         item = {}
@@ -226,6 +230,33 @@ class DLMWorkspace:
                 return item
         return None
 
+    def setItemProps(self, path, role, **kwargs):
+        """
+        Set an item's property.
+
+        returns:
+        The index of the item in self.items
+        """
+        resultIndices = []
+        for i in range(len(self.items)):
+            item = self.items[i]
+            if item.path == path:
+                if item.role == role:
+                    resultIndices.append(i)
+        if len(resultIndices) > 1:
+            return ValueError("There is more than one \"{}\" with role"
+                              " \"{}\".".format(path, role))
+        i = resultIndices[0]
+        # for i in resultIndices:
+        for k, v in kwargs.items():
+            if not hasattr(self.items[i], k):
+                raise AttributeError("Item has no member named {}."
+                                     "".format(k))
+            setattr(self.items[i], k, v)
+
+        return None
+
+
     def push(self, item, fileOp):
         """
         Sequential arguments:
@@ -235,6 +266,7 @@ class DLMWorkspace:
         error = None
         if item.role is None:
             return False, "The item must have a role before pushing it"
+        form = item.form
         role = item.role
         if role not in DLM.getRoles():
             raise ValueError("role must be one of: {} not {}"
@@ -254,7 +286,8 @@ class DLMWorkspace:
                                "".format(role))
         newExt = os.path.splitext(item.path)[1]
         paths = []
-        for form in DLM.getForms():
+        forms = DLM.getForms() if form is None else [form]
+        for form in forms:
             formPaths, innerError = self.formPaths(item.role, form,
                                                    container)
             print("  * checking forms: {}".format(formPaths))
@@ -271,7 +304,8 @@ class DLMWorkspace:
                     print("WARNING: skipping due to different"
                           " extension: {}".format(formPath))
         if len(paths) > 1:
-            raise RuntimeError("multiple targets: {}".format(paths))
+            raise RuntimeError("multiple targets: {}"
+                               " (try setting item.form)".format(paths))
         elif len(paths) < 1:
             raise RuntimeError("There is no possible target when the"
                                " role is {} and the container is {}"
@@ -287,14 +321,14 @@ class DLMWorkspace:
             item.path = path2
             self.items.append(item)
             with open(logPath, 'a') as log:
-                log.write(DLM.getDtString() + logLine)
+                log.write(DLM.getDtString() + logLine + "\n")
             print("* logged {}: \"{}\"".format(fileOp, logPath))
         elif fileOp == 'copy':
             shutil.copy(path1, path2)
             item.path = path2
             self.items.append(item)
             with open(logPath, 'a') as log:
-                log.write(DLM.getDtString() + logLine)
+                log.write(DLM.getDtString() + logLine + "\n")
             print("* logged {}: \"{}\"".format(fileOp, logPath))
         else:
             msg = ("* WARNING: nothing done for \"{}\" \"{}\" since {}"
@@ -311,7 +345,7 @@ class DLMWorkspace:
                 return i
         return -1
 
-    def populate(self, orig=None, role=None):
+    def populate(self, orig=None, role=None, form=None):
         """
         Keyword arguments:
         orig -- If the workspace is not the lab, specify a filename if
@@ -323,7 +357,11 @@ class DLMWorkspace:
                 you are adding a workspace that is in storage (not in
                 the lab) that doesn't already have DLM metadata
                 (in a file named according to DLM.WS_META_NAME).
+        form -- Assume orig is in this form (specify one of the
+                DLM.FORM_* constants). This only affects the orig file
+                (it affects no file if orig is not specified).
         """
+        itemForm = form
         roles = [role]
         if role is None:
             roles = DLM.getRoles()
@@ -334,10 +372,14 @@ class DLMWorkspace:
         for role in roles:
             for form in DLM.getSteps():
                 for container in DLM.getContainers():
+                    thisForm = form
                     try:
+                        if orig is not None:
+                            if itemForm is not None:
+                                thisForm = itemForm
                         item, error = self.generateItem(
                             role,
-                            form,
+                            thisForm,
                             container,
                             orig=orig
                         )
@@ -372,7 +414,7 @@ class DLMWorkspace:
                         # in this case.
                         pass
                     """
-                    info = DLM.formInfo(role, form, container)
+                    info = DLM.formInfo(role, thisForm, container)
                     if not info['everExists']:
                         continue
                     path = info['path']
@@ -487,7 +529,7 @@ class DLMWorkspace:
             # - There will be only one path in paths as per above if the
             #   orig param was not None.
             items = self.getRoleItems(role)
-            item = DLMItem(self.dlm, path, role=role)
+            item = DLMItem(self.dlm, path, role=role, form=form)
             print("  * trying to add item {}...".format(item))
             if len(items) > 0:
                 if len(items) > 1:
@@ -647,6 +689,7 @@ class DLMWorkspace:
         return self.dlm.isInLab(self.path)
 
     def load(self):
+        self.items = []
         path  = os.path.join(self.path, DLM.WS_META_NAME)
         if not os.path.isfile(path):
             return False
@@ -662,7 +705,6 @@ class DLMWorkspace:
             print("* INFO: \"{}\" has {} item(s): {}."
                   "".format(path, len(meta['items']), meta['items']))
         itemDicts = meta['items']
-        self.items = []
         for itemDict in itemDicts:
             itemPath = itemDict.get('path')
             if itemPath is None:
