@@ -11,6 +11,11 @@ project.
   - See tests/rcsource_tests.py under `except ImportError` for how to
     install it.
 - pretrained models
+  - Before using super resolution methods, you must add pb files via:
+    ```
+from RCSettings import settings
+settings.addModel(pbFilePath)
+```
 
 
 ## Tasks
@@ -83,6 +88,13 @@ Related methods and corresponding papers:
 
 
 ## Developer Notes
+
+### RCSource
+- if `_first` is `None`, it is a single image.
+  - Use `self.os.path.split(self._vidPathNoExt)[1]` not `_prefix` to
+    generate a name (along with `self._ext`).
+  - `self.getFrameName` will still work but will always return the same
+    image file name.
 
 ### First-time Setup of This Repo
 (running some of these steps again may not be necessary)

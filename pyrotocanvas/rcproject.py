@@ -92,6 +92,7 @@ class RCProject:
             return "You have not set a path."
         with open(self.path, 'w') as outs:
             json.dump(self._meta, outs, indent=2, sort_keys=True)
+        print("[rcproject.py] Saved \"{}\"".format(self.path))
 
     @property
     def path(self):

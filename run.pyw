@@ -3,14 +3,19 @@ from decimal import Decimal
 import decimal
 import locale as lc
 import math
+import os
 
 try:
     import tkinter as tk
     from tkinter import ttk
+    from tkinter.filedialog import askopenfilename
+    from tkinter.messagebox import showerror
 except ImportError:
     # python 2
     import Tkinter as tk
     import ttk
+    from tkFileDialog import askopenfilename
+    from tkMessageBox import showerror
 
 
 # List theme names:
@@ -26,6 +31,7 @@ class ProjectFrame(ttk.Frame):
         self.parent = parent
         root = self.parent
         self.seqPath = tk.StringVar()
+        self.frameRate = tk.StringVar()
         self.result = tk.StringVar()
 
         ttk.Frame.__init__(self, parent)
@@ -33,10 +39,19 @@ class ProjectFrame(ttk.Frame):
         self.fileMenu = tk.Menu(self.menu, tearoff=0)
         self.menu.add_cascade(label="File", menu=self.fileMenu)
 
-        self.fileMenu.add_command(label="Open", command=self.open)
+        self.fileMenu.add_command(label="Open Video", command=self.open)
         self.fileMenu.add_command(label="Save", command=self.save)
+        self.fileMenu.add_command(label="Save As", command=self.saveAs)
         self.fileMenu.add_command(label="Exit",
                                   command=self.parent.destroy)
+
+
+        self.prepMenu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(label="Prepare", menu=self.prepMenu)
+        self.prepMenu.add_command(
+            label="Super Resolution (This Frame)",
+            command=self.srFrame
+        )
 
         # self.themeMenu = tk.Menu(self.menu, tearoff=0)
         # self.menu.add_cascade(label="Theme", menu=self.themeMenu)
@@ -60,6 +75,14 @@ class ProjectFrame(ttk.Frame):
                                                         columnspan=3,
                                                         row=row,
                                                         sticky=tk.W)
+        row += 1
+        ttk.Label(self, text="Frame Rate:").grid(column=0, row=row,
+                                                 sticky=tk.E)
+        ttk.Entry(self, textvariable=self.frameRate).grid(column=1,
+                                                          columnspan=3,
+                                                          row=row,
+                                                          sticky=tk.W)
+        self.frameRate.set("60000/1001")
         # Entry width=25, state="readonly"
         row += 1
         self.prev_button = ttk.Button(self, text="<", command=self.prev)
@@ -98,6 +121,7 @@ class ProjectFrame(ttk.Frame):
         self.project = RCProject()
         self.titleFmt = "RotoCanvas - {}"
         root.title(self.titleFmt.format(self.project.path))
+        self.img = None
 
     def setTheme(self, name):
         self.parent.style.theme_use(name)
@@ -111,13 +135,56 @@ class ProjectFrame(ttk.Frame):
     def play(self):
         pass
 
+    def srFrame(self):
+        video = self.project._videos[self.seqPath.get()]
+        video.superResolutionAI(
+            onlyTimes=None,
+            forceRatio=None,
+            outFmt="png",
+            qscale_v=2,
+            minDigits=None,
+            preserveDim=1,
+            organizeMode=0,
+            onlyFrames=None
+        )
+
+    def saveAs(self):
+        path = asksaveasfilename(
+            initialdir=RCProject.VIDEOS,
+            title = "Select file",
+            filetypes = (
+                ("RotoCanvas project files", "*.rotocanvas"),
+                ("all files", "*.*"),
+            ),
+        )
+        self.project.path = path
+
     def save(self):
         saveError = self.project.save()
         if saveError is not None:
             self.result.set(saveError)
 
     def open(self):
-
+        startIn = RCProject.VIDEOS
+        tryIn = ("/home/owner/ownCloud/Tabletop/Campaigns/"
+                 "The Path of Resistance/scanned-unsorted/")
+        if os.path.isdir(tryIn):
+            startIn = tryIn
+        path = askopenfilename(
+            initialdir=startIn,
+            title = "Select file",
+            filetypes = (
+                ("image files", ["*.jpg", "*.png"]),
+                ("jpeg files", "*.jpg"),
+                ("png files", "*.png"),
+                ("all files", "*.*"),
+            ),
+        )
+        # self.project.open(path)
+        self.project.addVideo(path, self.frameRate.get())
+        self.seqPath.set(path)
+        self.img = tk.PhotoImage(file=path)
+        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.img)
         pass
 
     def end(self):

@@ -87,17 +87,28 @@ class RCSource:
             self._minDigits = len(numberS)
             # first = get_frame_number(firstFramePath, prefix=prefix,
             # _minDigits=_minDigits)
-            self._first = int(numberS)
+            try:
+                self._first = int(numberS)
+            except ValueError as ex:
+                self._first = None
             print("[rcsource init] _prefix: {}".format(self._prefix))
             print("[rcsource init] _first: {}".format(self._first))
             print("[rcsource init] _ext: {}".format(self._ext))
             print("[rcsource init] _minDigits: {}"
                   "".format(self._minDigits))
+
         self._vidPathNoExt = os.path.splitext(vidPath)[0]
         self.fpsStr = fpsStr
 
+    @property
+    def vidPath(self):
+        frame = self._first if self._first is not None else ""
+        return self._vidPathNoExt + frame + self._ext
 
     def isImageSequence(self):
+        if (self._first is None) and (self._ext in self._extensions):
+            # single image
+            return True
         return self._first is not None
 
     @property
@@ -109,6 +120,22 @@ class RCSource:
                                  "exactly two parts but is in {}: {}"
                                  "".format(len(parts), self.fpsStr))
             return float(parts[0]) / float(parts[1])
+
+    def getAllFrameNumbers(self):
+        if self._first is not None:
+            raise NotImplementedError("getAllFrameNumbers is only"
+                                      " implemented for single images")
+        return [None]
+
+    def getFrameName(self, thisFrame, minDigits):
+        if self._first is None:
+            # single image
+            dotExt = ""
+            if self._ext is not None:
+                dotExt = "." + self._ext
+            return os.path.split(self._vidPathNoExt)[1] + dotExt
+        return get_frame_name(self._prefix, thisFrame,
+                              minDigits, self._ext)
 
     def superResolutionAI(self, onlyTimes=None, forceRatio=None,
                           outFmt="jpg", qscale_v=2, minDigits=None,
@@ -170,7 +197,7 @@ class RCSource:
             atList = onlyFrames
         else:
             p = os.path.dirname(self.vidPath)
-            lde = ["."+ext.lower() for ext in extensions]
+            lde = ["."+ext.lower() for ext in self._extensions]
             atList = []
             for sub in os.listdir(p):
                 if not sub.startswith(self._prefix):
@@ -183,19 +210,30 @@ class RCSource:
             # TODO: make a new iterable (iterate frames in image list)
             if self.isImageSequence():
                 # TODO: create onlyFrames based on times!
-                onlyTimes = onlyFrames
-                raise NotImplementedError("A time list isn't"
-                                          " implemented for images.")
+                if onlyFrames is not None:
+                    onlyTimes = onlyFrames
+                    raise NotImplementedError("A time list isn't"
+                                              " implemented for images"
+                                              ".")
+                else:
+                    atList = self.getAllFrameNumbers()
         # framesPath = os.path.join(self._dir)
         print("[sr] isImageSequence: {}".format(self.isImageSequence()))
         for atS in atList:
             timeStr = None
             if self.isImageSequence():
                 thisFrame = atS
-                paddedNum = str(int(thisFrame)).zfill(minDigits)
                 outDir = os.path.join(self._dir, "scaled")
-                outName = "{}{}.{}".format(self._prefix, paddedNum,
-                                           outFmt)
+                if thisFrame is not None:
+                    paddedNum = str(int(thisFrame)).zfill(minDigits)
+                    outName = "{}{}.{}".format(self._prefix, paddedNum,
+                                               outFmt)
+                else:
+                    outName = "{}.{}".format(
+                        os.path.split(self._vidPathNoExt)[1],
+                        outFmt
+                    )
+
             else:
                 timeStr = atS
                 # tmpSuffix = timeStr.replace(":", "_")
@@ -206,6 +244,7 @@ class RCSource:
                 paddedNum = str(int(thisFrame)).zfill(minDigits)
                 outDir = "{}_{}".format(self._vidPathNoExt, outFmt)
                 outName = "{}.{}".format(paddedNum, outFmt)
+            print("outName: {}".format(outName))
             outPath = os.path.join(outDir, outName)
             print("Frame number: {}".format(thisFrame))
             if not os.path.isdir(outDir):
@@ -241,12 +280,16 @@ class RCSource:
                 originalPath = os.path.join(originalsDir, outName)
                 shutil.move(outPath, originalPath)
             else:
-                frameName = get_frame_name(self._prefix, thisFrame,
-                                           minDigits, self._ext)
+                frameName = self.getFrameName(thisFrame, minDigits)
+
                 originalPath = os.path.join(self._dir, frameName)
             print("originalPath: {}".format(originalPath))
             print("outDir: {}".format(outDir))
             print("outPath: {}".format(outPath))
+            if originalPath == outPath:
+                raise RuntimeError("[{}] * failed to generate a"
+                                   " different filename from the"
+                                   " original.".format(myName))
             if not os.path.isfile(originalPath):
                 raise ValueError("{} does not exist."
                                  "".format(originalPath))
