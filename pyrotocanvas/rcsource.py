@@ -44,6 +44,9 @@ except ImportError:
 
 class RCSource:
     _defaultExtensions = ["jpg", "jpeg", "jpe", "png", "bmp"]
+    ORGANIZE_MODEL_DIR = 0
+    ORGANIZE_PREFIX = 1
+    ORGANIZE_FRAME_NUM_DIR = 2
 
     def __init__(self, vidPath, fpsStr, extensions=None):
         if extensions is None:
@@ -167,7 +170,8 @@ class RCSource:
             regardless of the AI upscaling model (prefix the filename
             with the algorithm instead). If 0, place results of
             each model in separate directories. If 2, place all files
-            of the same frame in the same directory.
+            of the same frame in the same directory. Pass a
+            RCSource.ORGANIZE_* constant for clarity.
         """
         if minDigits is None:
             if self._minDigits is not None:
