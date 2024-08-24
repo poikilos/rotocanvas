@@ -23,13 +23,11 @@ import subprocess
 import shlex
 import traceback
 
-from pprint import pformat
-
-print("executable: %s" % pformat(sys.executable))
+print("executable: %s" % repr(sys.executable))
 print("os.path.realpath(executable): %s"
-      % pformat(os.path.realpath(sys.executable)))
+      % repr(os.path.realpath(sys.executable)))
 import site  # noqa E402
-print("site-packages: %s" % pformat(site.getsitepackages()))
+print("site-packages: %s" % repr(site.getsitepackages()))
 
 venv_error_fmt = ("Import failed though %s exists, so the virtual"
                   " environment appears to be broken. Recreate it"
@@ -48,10 +46,10 @@ if sys.version_info.major >= 3:
                       file=sys.stderr)
             elif os.path.exists(try_sub):
                 print("Error: %s exists but is not a directory"
-                      "" % pformat(try_sub),
+                      "" % repr(try_sub),
                       file=sys.stderr)
             else:
-                print("Error: %s is not present" % pformat(try_sub),
+                print("Error: %s is not present" % repr(try_sub),
                       file=sys.stderr)
         raise
 else:  # Python 2
