@@ -14,9 +14,9 @@ except ModuleNotFoundError:
     print("[rcsource] Using {} for modules.".format(modules))
     from rcsettings import settings
 
-from ffmpegtime import FFMPEGTime
-from util import split_frame_name
-from util import get_frame_name
+from ffmpegtime import FFMPEGTime  # noqa: E402
+from util import split_frame_name  # noqa: E402
+from util import get_frame_name  # noqa: E402
 opencv_enabled = False
 try:
     import cv2
