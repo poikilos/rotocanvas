@@ -27,7 +27,7 @@ class RCProject:
         vidPath (str): The video file path.
         fpsStr (str): the framerate in string format to avoid floating
             point accuracy issues (may be fractional such as 30000/1001
-            or 60000/1001 for NTCS "drop frame" 30 or 60 fps
+            or 60000/1001 for NTSC "drop frame" 30 or 60 fps
             respectively)
         extensions (Optional[list[str]]): Specify image extensions to
             try (only applies if vidPath is a directory). If None, use

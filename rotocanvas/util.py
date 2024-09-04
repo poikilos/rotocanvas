@@ -35,7 +35,7 @@ def get_frame_name(prefix, i, minDigits, ext=None):
         return noExt + "." + ext
 
 
-def splitframename(framePath):
+def split_frame_name(framePath):
     parent = os.path.split(framePath)[0]
     firstFrameName = os.path.split(framePath)[1]
     # print(parent)
@@ -62,7 +62,7 @@ def splitframename(framePath):
 
 def get_frame_number(framePath, prefix=None, minDigits=None):
     frameName = os.path.split(framePath)[1]
-    pr, numberS, dotExt = splitframename(frameName)
+    pr, numberS, dotExt = split_frame_name(frameName)
     md = len(numberS)
     if (prefix is None) or (minDigits is None):
         if prefix is None:
@@ -111,7 +111,7 @@ def divide_frames(firstFramePath, start, step):
     start - the first frame to keep
     step - how many frames to skip
     """
-    prefix, numberS, dotExt = splitframename(firstFramePath)
+    prefix, numberS, dotExt = split_frame_name(firstFramePath)
     minDigits = len(numberS)
     # first = get_frame_number(firstFramePath, prefix=prefix,
     # minDigits=minDigits)

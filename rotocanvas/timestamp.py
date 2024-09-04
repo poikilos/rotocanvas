@@ -74,7 +74,7 @@ def frame_to_ffmpeg_timecode(frame_number, fps):
     Args:
         frame_number (int): Frame number.
         fps (float): Exact frames per second (such as 29.97 if using
-            NTCS drop-frame).
+            NTSC drop-frame).
     """
     # I originally posted this code at
     # <https://github.com/mifi/lossless-cut/issues/126

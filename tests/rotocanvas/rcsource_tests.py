@@ -33,7 +33,7 @@ else:
             print("Using modules dir: {}".format(reposDir))
             break
 
-from rotocanvas.ffmpegtime import FFMPEGTime  # noqa: E402
+# from rotocanvas.ffmpegtime import FFMPEGTime  # noqa: E402
 from rotocanvas.rcproject import RCProject  # noqa: E402
 from rotocanvas.rcsource import RCSource  # noqa: E402
 # from rotocanvas.rcsettings import settings

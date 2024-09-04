@@ -15,7 +15,7 @@ except ModuleNotFoundError:
     from rcsettings import settings
 
 from ffmpegtime import FFMPEGTime
-from util import splitframename
+from util import split_frame_name
 from util import get_frame_name
 opencv_enabled = False
 try:
@@ -84,9 +84,9 @@ class RCSource:
         print("[rcsource init] _dir: {}".format(self._dir))
         print("[rcsource init] _fileName: {}".format(self._fileName))
         if isImage:
-            self._prefix, numberS, de = splitframename(self._fileName)
+            self._prefix, numberS, de = split_frame_name(self._fileName)
             if de != dotExt:
-                raise RuntimeError("splitframename got {} not {}"
+                raise RuntimeError("split_frame_name got {} not {}"
                                    " for extension.".format(de, dotExt))
             self._minDigits = len(numberS)
             # first = get_frame_number(firstFramePath, prefix=prefix,
@@ -213,7 +213,7 @@ class RCSource:
                     continue
                 if sub.lower() not in lde:
                     continue
-                pre, frameS, de = splitframename(sub)
+                pre, frameS, de = split_frame_name(sub)
                 atList.append(int(frameS))
             # ENTIRE
             # TODO: make a new iterable (iterate frames in image list)

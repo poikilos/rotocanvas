@@ -69,7 +69,7 @@ class PPAnimationMetaFrame:
 
 
 class PPAnimation:
-    """PPAnimation is ONLY a list of indeces (metaframe objects)
+    """PPAnimation is ONLY a list of indices (metaframe objects)
     Sprite (not in here) stores the actual images.
     """
     # list of PPAnimationMetaFrame objects
@@ -621,9 +621,9 @@ def blit_copy(dst_data, dstStride,
             for dstY in range(0, dst_height):
                 d_nlpi = d_lpi + dstStride
                 d_nlpi_ltd = d_lpi + srcStride
-                # intentially src stride to limit self stride since
+                # intentionally src stride to limit self stride since
                 #     # source is smaller
-                s_nlpi = s_lpi + dstStride  # indentionally src
+                s_nlpi = s_lpi + dstStride  # intentionally src
                 # s_nlpi_ltd = s_lpi + dstStride
                 #     # intentionally dstStride, to limit what to get
                 if dstY < src_height:
@@ -786,13 +786,13 @@ class PPImage:
     def draw_line_ivec3_h(self, vec2, rgb_bytes, count):
         # 0 is x or width, 1 is y or height
         # crop first, then call internal method:
-        endbefore = vec2[0] + count
+        end_before = vec2[0] + count
         if vec2[0] < 0:
             diff = 0 - vec2[0]
             count -= diff
             vec2 = (vec2[0] + diff, vec2[1])
-        elif endbefore > self.size[0]:
-            count -= (endbefore - self.size[0])
+        elif end_before > self.size[0]:
+            count -= (end_before - self.size[0])
         if vec2[1] < 0:
             count = 0
         elif vec2[1] >= self.size[1]:
@@ -836,13 +836,13 @@ class PPImage:
     def draw_line_ivec3_v(self, vec2, rgb_bytes, count):
         # 0 is x or width, 1 is y or height
         # crop first, then call internal method:
-        endbefore = vec2[1] + count
+        end_before = vec2[1] + count
         if vec2[1] < 0:
             diff = 0 - vec2[1]
             count -= diff
             vec2 = (vec2[0], vec2[1] + diff)
-        elif endbefore > self.size[1]:
-            count -= (endbefore - self.size[1])
+        elif end_before > self.size[1]:
+            count -= (end_before - self.size[1])
         if vec2[0] < 0:
             count = 0
         elif vec2[0] >= self.size[0]:
@@ -1205,7 +1205,7 @@ class PPImage:
                     d_nlpi = d_lpi + self.stride
                     # NextDestLinePixelIndexLIMITED:
                     d_nlpi_ltd = d_lpi + srcStride
-                    # intentially src stride to limit self stride
+                    # intentionally src stride to limit self stride
                     # since source is smaller
                     s_nlpi = s_lpi + srcStride
                     # s_nlpi_ltd = \

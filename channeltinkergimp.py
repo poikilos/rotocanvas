@@ -4,17 +4,17 @@ For each pixel where the alpha is below the threshold, get a new color
 using the nearest opaque pixel.
 """
 from __future__ import print_function
-import math
-import sys
-from itertools import chain
-import time
+# import math
+# import sys
+# from itertools import chain
+# import time
 
 from gimpfu import *  # by convention, import *
 from channeltinker import (
-    convert_depth,
-    echo1,
-    idist,
-    find_opaque_pos,
+    # convert_depth,
+    # echo1,
+    # idist,
+    # find_opaque_pos,
     ChannelTinkerInterface,
     ChannelTinkerProgressInterface,
     draw_circle_from_center,

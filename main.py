@@ -5,14 +5,23 @@ based on http://kivy.org/docs/examples/gen__canvas__fbo_canvas__py.html
 
 '''
 from __future__ import print_function
+import sys
+import platform
+
 try:
-    import kivy
-except ImportError as ex:
-    print("This program requires kivy. Try:")
-    print("python -m pip install --user --upgrade pip")
-    print("python -m pip install --user --upgrade setuptools wheel")
-    print("python -m pip install --user --upgrade kivy")
-    exit(1)
+    import kivy  # noqa: F401
+except ImportError:
+    print("This program requires kivy. Try:", file=sys.stderr)
+    print("python -m venv .venv", file=sys.stderr)
+    if platform.system() == "Windows":
+        print(".\\.venv\\Scripts\\activate.ps1", file=sys.stderr)
+    else:
+        print("source .venv/bin/activate", file=sys.stderr)
+    print("pip install --upgrade pip", file=sys.stderr)
+    print("pip install --upgrade pip", file=sys.stderr)
+    print("pip install --upgrade setuptools wheel", file=sys.stderr)
+    print("pip install --upgrade kivy", file=sys.stderr)
+    sys.exit(1)
 
 # from kivy.uix.boxlayout import BoxLayout
 # from kivy.uix.colorpicker import ColorPicker

@@ -16,9 +16,9 @@ if sys.version_info.major >= 3:
     )
     # import tkinter.messagebox as messagebox
 else:  # Python 2
-    import Tkinter as tk
-    import ttk
-    from tkFileDialog import (
+    import Tkinter as tk  # type: ignore
+    import ttk  # type: ignore
+    from tkFileDialog import (  # type: ignore
         askopenfilename,
         asksaveasfilename,
     )
@@ -70,8 +70,7 @@ class ProjectFrame(ttk.Frame):
         #     )
         # ^ skip this. On Windows it is automatic, and on GNU+Linux
         #   systems, all of them (clam, alt, default, classic) are all
-        #   the same, like old xwindows (thick "3D" edges like Windows
-        #   3.1)
+        #   the same, like motif (thick "3D" edges like Windows 3.1)
 
         parent.config(menu=self.menu)
         self.pack(fill=tk.BOTH, expand=True)
