@@ -8,7 +8,9 @@ where any of the following apply:
 
 Example:
 cd ~/minetest/games
+# cspell:disable-next-line
 {cmd} ../bucket_game-200527 bucket_game | grep -v narrower | grep -v "[Ss]creenshot"
+# cspell:disable-next-line
 {cmd} ../bucket_game-200527 bucket_game --max-source-ratio .5 --exclude projects --exclude src --exclude etc --exclude 3d_armor --exclude signs_lib | grep -v narrower | grep -v "[Ss]creenshot"
 '''
 # ^ where {cmd} is diffimagesratio if you did "pip install rotocanvas"
@@ -116,9 +118,9 @@ def showDiffRatioForImages(base_path, head_path, root=None, indent="",
         if os.path.isdir(headSubPath):
             if sub in skipDirNames:
                 continue
-            newindent = indent
+            new_indent = indent
             if not os.path.isdir(baseSubPath):
-                newindent = indent + "  "
+                new_indent = indent + "  "
                 # print("sub: \"{}\"".format(sub))
                 # print("skipDirNames: \"{}\"".format(skipDirNames))
                 print(indent + "- +new dir:   {}".format(headSubPath))
@@ -126,7 +128,7 @@ def showDiffRatioForImages(base_path, head_path, root=None, indent="",
                 baseSubPath,
                 headSubPath,
                 root=root,
-                indent=newindent,
+                indent=new_indent,
                 max_source_ratio=max_source_ratio,
                 skipDirNames=skipDirNames,
                 patchify=patchify,

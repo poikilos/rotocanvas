@@ -182,21 +182,21 @@ def convert_depth(color, channel_count, c_max=1.0):
         tuple(int): Color where each value is between 0 and 255
             (regardless of input x_max).
     """
-    listlike = None
+    list_like = None
     # Perform duck typing:
     try:
         tmp_len = len(color)
         try:
             tmp_lower = color.lower()
-            listlike = False
+            list_like = False
         except AttributeError:
             # AttributeError: 'list' object has no attribute 'lower'
-            listlike = True
+            list_like = True
     except TypeError:
         # object of type 'int' has no len()
-        listlike = False
+        list_like = False
 
-    if listlike:
+    if list_like:
         # list, tuple, RGB (gimp color), or other
         if isinstance(color[0], float):
             new_color = []
@@ -292,9 +292,10 @@ def fdist(pos1, pos2):
 
 
 def idist(pos1, pos2):
-    fpos1 = [float(i) for i in pos1]
-    fpos2 = [float(i) for i in pos2]
-    return fdist(fpos1, fpos2)
+    pos1 = [float(i) for i in pos1]
+    pos2 = [float(i) for i in pos2]
+    # TODO: round or something?
+    return fdist(pos1, pos2)
 
 
 def profile_name():

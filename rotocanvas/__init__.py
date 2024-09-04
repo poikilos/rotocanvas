@@ -22,7 +22,7 @@ class Constants(dict):
         if readonly is None:
             readonly = False
         elif readonly not in (True, False):
-            raise TypeError("readonly shoul be True or False (got {})"
+            raise TypeError("readonly should be True or False (got {})"
                             "".format(readonly))
         self.__readonly = readonly
 

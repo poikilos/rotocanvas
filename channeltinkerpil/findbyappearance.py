@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError as ex:
     sys.stderr.write("{}\n\n".format(ex))
     sys.stderr.flush()
-    sys.stderr.write("You have to run setup to get the findbyapperance"
+    sys.stderr.write("You have to run setup to get the findbyappearance"
                      " command.\n\n")
     sys.stderr.flush()
     sys.exit(1)

@@ -29,8 +29,8 @@ class PixelWidget(Widget):
     viewImage = None
     texture_flipped = True  # True for MDFloatLayout, False for BoxLayout
     # ^ (False causes KivyPixels save & saveAs to perform un-flipping)
-    # TOTALBYTECOUNT = None
-    # TOTALPIXELCOUNT = None
+    # TOTAL_BYTE_COUNT = None
+    # TOTAL_PIXEL_COUNT = None
     # STRIDE = None
     # viewImage = None
     # assumed_fbo_byteDepth = 4
@@ -87,8 +87,8 @@ class PixelWidget(Widget):
 
         # self.viewImage.fill_icolor(0, 0, 0, 255)
         print(prefix + "size: {}".format(self.viewImage.size))
-        # print("TOTALBYTECOUNT:"+str(self.TOTALBYTECOUNT))
-        # print("TOTALPIXELCOUNT:"+str(self.TOTALPIXELCOUNT))
+        # print("TOTAL_BYTE_COUNT:"+str(self.TOTAL_BYTE_COUNT))
+        # print("TOTAL_PIXEL_COUNT:"+str(self.TOTAL_PIXEL_COUNT))
 
         self.viewImage.setBrushPath("brush2.png")
         self.viewImage.setBrushColor((1, 1, 1, 1))
@@ -153,19 +153,19 @@ class PixelWidget(Widget):
     # def fbo_populate_texture(self, texture):
         # texture.blit_buffer(bytes(self.viewImage.data))
 
-    # def add_widget(self, *largs):
+    # def add_widget(self, *args):
         # # trick to attach graphics instruction to fbo instead of
         # # canvas
         # canvas = self.canvas
         # self.canvas = self.fbo
-        # ret = super(PixelWidget, self).add_widget(*largs)
+        # ret = super(PixelWidget, self).add_widget(*args)
         # self.canvas = canvas
         # return ret
 
-    # def remove_widget(self, *largs):
+    # def remove_widget(self, *args):
         # canvas = self.canvas
         # self.canvas = self.fbo
-        # super(PixelWidget, self).remove_widget(*largs)
+        # super(PixelWidget, self).remove_widget(*args)
         # self.canvas = canvas
 
     def updateColorNames(self):
@@ -187,8 +187,8 @@ class PixelWidget(Widget):
             self.viewImage.aOffset = self.viewImage_aOffset
 
             print(prefix + "size: {}".format(self.viewImage.size))
-            # print("TOTALBYTECOUNT:" + str(self.TOTALBYTECOUNT))
-            # print("TOTALPIXELCOUNT:" + str(self.TOTALPIXELCOUNT))
+            # print("TOTAL_BYTE_COUNT:" + str(self.TOTAL_BYTE_COUNT))
+            # print("TOTAL_PIXEL_COUNT:" + str(self.TOTAL_PIXEL_COUNT))
 
     def on_size(self, instance, value):
         self.fbo.size = value

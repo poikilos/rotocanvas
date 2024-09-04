@@ -13,7 +13,7 @@ def get_dict_deepcopy(old_dict):
     recall why this might be necessary. However, it can also convert
     a non-dict dict-like object to a dict.
 
-    This is from parsing.py in github.com/poikilos/pycodetool, but
+    This is from parsing.py in github.com/Hierosoft/pycodetool, but
     modified for Python 2 compatibility.
 
     Returns:

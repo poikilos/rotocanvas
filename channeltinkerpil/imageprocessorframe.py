@@ -32,15 +32,15 @@ print("site-packages: %s" % repr(site.getsitepackages()))
 venv_error_fmt = ("Import failed though %s exists, so the virtual"
                   " environment appears to be broken. Recreate it"
                   " after installing tkinter. A symlink won't work.")
-tkdephelp = "sudo apt-get install python3-tk"
-dephelp = "sudo apt-get install python3-pil python3-pil.imagetk"
+tk_dep_help = "sudo apt-get install python3-tk"
+dep_help = "sudo apt-get install python3-pil python3-pil.imagetk"
 if sys.version_info.major >= 3:
     try:
         import tkinter as tk
         from tkinter import ttk
     except ImportError:
-        for sitepackages in site.getsitepackages():
-            try_sub = os.path.join(sitepackages, "tkinter")
+        for site_packages in site.getsitepackages():
+            try_sub = os.path.join(site_packages, "tkinter")
             if os.path.isdir(try_sub):
                 print(venv_error_fmt % try_sub,
                       file=sys.stderr)
@@ -55,8 +55,8 @@ if sys.version_info.major >= 3:
 else:  # Python 2
     import Tkinter as tk  # type: ignore
     import ttk  # type: ignore
-    tkdephelp = "sudo apt-get install python-tk"
-    dephelp = "sudo apt-get install python-imaging python-pil.imagetk"
+    tk_dep_help = "sudo apt-get install python-tk"
+    dep_help = "sudo apt-get install python-imaging python-pil.imagetk"
 
 
 try:
@@ -67,7 +67,7 @@ except ModuleNotFoundError as ex:
     print("{}".format(ex))
     print()
     print("You must install ImageTk such as via:")
-    print(dephelp)
+    print(dep_help)
     print()
     sys.exit(1)
 
@@ -78,7 +78,7 @@ except ImportError as ex:
     print("{}".format(ex))
     print()
     print("You must install ImageTk such as via:")
-    print(dephelp)
+    print(dep_help)
     print()
     sys.exit(1)
 
@@ -89,7 +89,7 @@ except ImportError as ex:
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 REPO_DIR = os.path.dirname(MODULE_DIR)
 if os.path.isdir(os.path.join(os.path.dirname(REPO_DIR), "rotocanvas")):
-    # parent of rotocanvas is rotocanvas not sitepackages,
+    # parent of rotocanvas is rotocanvas not site-packages,
     # so allow using the nearby module even if not installed.
     sys.path.insert(0, REPO_DIR)
 
@@ -580,9 +580,9 @@ class MainFrame(ttk.Frame):
                     meta['comment'] = line
                     self.metas.append(meta)
                     continue
-                for argi, arg in enumerate(args):
+                for arg_i, arg in enumerate(args):
                     if arg.startswith("#"):
-                        meta['comment'] = " ".join(args[argi:])
+                        meta['comment'] = " ".join(args[arg_i:])
                         # TODO: Detect & insert original spacing.
                         break
                     arg_path = self.getFullPath(arg)
@@ -658,7 +658,7 @@ class MainFrame(ttk.Frame):
             else:
                 self.generateList(base_path)
         elif os.path.isdir(path):
-            # self.listSV.set("")  # It isn't a listfile but a folder.
+            # self.listSV.set("")  # It isn't a list file but a folder.
             # echo0("* generateList for \"{}\"...".format(path))
             # self.setPath(path)
             # ^ So relative paths don't use the current working
@@ -748,7 +748,7 @@ class MainFrame(ttk.Frame):
         if os.path.isdir(path):
             echo1(prefix + "Got dir {}, generating file list..."
                   .format(path))
-            self.listSV.set("")  # It isn't a listfile but a folder.
+            self.listSV.set("")  # It isn't a list file but a folder.
             self.setPath(path)
             for sub in os.listdir(path):
                 subPath = os.path.join(path, sub)
@@ -768,7 +768,7 @@ class MainFrame(ttk.Frame):
             echo1(prefix + "Got file {}, generating nearby file list..."
                   .format(path))
             self.listSV.set("")
-            # ^ It isn't a listfile but a folder containing the
+            # ^ It isn't a list file but a folder containing the
             #   specified image file.
             parent = os.path.dirname(path)
             self.generateList(parent)  # does call setPath if folder

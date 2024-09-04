@@ -4,6 +4,7 @@ Compare two image files.
 Part of rotocanvas.
 
 Similar projects:
+# cspell:disable-next-line
 - [diffimg](https://github.com/sandsmark/diffimg): Displays difference
   as a color mask using Qt.
 '''

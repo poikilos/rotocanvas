@@ -353,7 +353,7 @@ class ColorPopup(Popup):
         #self.isStillPushingColorButton = True
         self.dismiss()
 
-    def onAnyClick(self, touch, *largs):
+    def onAnyClick(self, touch, *args):
         if not self.isStillPushingColorButton:
             self.pickedColor = self.mainColorPicker.color
             self.isStillPushingColorButton = True
