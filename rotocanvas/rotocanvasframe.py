@@ -7,6 +7,8 @@ import locale as lc
 import os
 import sys
 
+from logging import getLogger
+
 if sys.version_info.major >= 3:
     import tkinter as tk
     from tkinter import ttk
@@ -24,10 +26,26 @@ else:  # Python 2
     )
     # import tkMessageBox as messagebox
 
+ENABLE_PIL = False
+try:
+    from PIL import ImageTk, Image
+    ENABLE_PIL = True
+except ImportError:
+    pass
 
-# List theme names:
+MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+REPO_DIR = os.path.dirname(MODULE_DIR)
 
-from rotocanvas.rcproject import RCProject
+if __name__ == "__main__":
+    sys.path.insert(0, REPO_DIR)
+
+from rotocanvas.rcproject import RCProject  # noqa: E402
+
+logger = getLogger(__name__)
+
+
+
+
 
 
 class ProjectFrame(ttk.Frame):
@@ -190,7 +208,14 @@ class ProjectFrame(ttk.Frame):
         # self.project.open(path)
         self.project.addVideo(path, self.frameRate.get())
         self.seqPath.set(path)
-        self.img = tk.PhotoImage(file=path)
+        try:
+            self.img = tk.PhotoImage(file=path)
+        except tk.TclError:
+            if ENABLE_PIL:
+                self.img = ImageTk.PhotoImage(file=path)
+            else:
+                logger.error("PIL is not enabled.")
+                raise
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.img)
         pass
 
