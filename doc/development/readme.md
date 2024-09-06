@@ -38,7 +38,7 @@ catch(std::exception& e) {
       simply ghosting)
 * [ ] Add a test system that builds ImageSequenceExamples from the blend
   file if Blender is installed on the system. For now, render manually
-  (to /home/owner/Videos/ImageSequenceExamples on Poikilos' computer).
+  (to ~/Videos/ImageSequenceExamples on Poikilos' computer).
 * [ ] Effects (see <http://randombio.com/linuxsetup141.html>)
 * [ ] Load VirtualDub plugins, possibly as cscript using their
   sourcecode.

@@ -4,6 +4,10 @@ import sys
 
 _opencv_tip = None
 
+from rotocanvas import (
+    sysdirs,
+)
+
 
 class RCSettings:
     def __init__(self):
@@ -13,7 +17,8 @@ class RCSettings:
         parentPath = os.path.dirname(reposPath)  # even higher up
         self.thisPython = "python"
         self._enable_opencv = False
-        tryLocal = "/home/owner/Videos/Demo_Reel/media/"
+        tryLocal = os.path.join(sysdirs['HOME'], "Videos", "Demo_Reel",
+                                "media")
         if os.path.isdir(os.path.join(parentPath, "opencvenv")):
             self.thisPython = os.path.join(reposPath, "opencvenv",
                                            "bin", "python")
@@ -48,8 +53,8 @@ class RCSettings:
         self.thisFFMpeg = "ffmpeg"
         tryDirs = []
         tryDirs.append(os.path.join("..", "..", "models"))
-        tryDirs.append("/home/owner/Videos/Demo_Reel/media/"
-                       "super-resolution/models/")
+        tryDirs.append(os.path.join(sysdirs['HOME'], "Videos", "Demo_Reel",
+                                    "media", "super-resolution", "models"))
         self.scalingModelsDir = None
         for tryDir in tryDirs:
             if os.path.isdir(tryDir):

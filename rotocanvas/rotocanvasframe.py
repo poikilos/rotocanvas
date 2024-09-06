@@ -39,13 +39,12 @@ REPO_DIR = os.path.dirname(MODULE_DIR)
 if __name__ == "__main__":
     sys.path.insert(0, REPO_DIR)
 
+from rotocanvas import (
+    sysdirs,
+)
 from rotocanvas.rcproject import RCProject  # noqa: E402
 
 logger = getLogger(__name__)
-
-
-
-
 
 
 class ProjectFrame(ttk.Frame):
@@ -65,7 +64,7 @@ class ProjectFrame(ttk.Frame):
         self.fileMenu = tk.Menu(self.menu, tearoff=0)
         self.menu.add_cascade(label="File", menu=self.fileMenu)
 
-        self.fileMenu.add_command(label="Open Video", command=self.open)
+        self.fileMenu.add_command(label="Open Video", command=self.askOpen)
         self.fileMenu.add_command(label="Save", command=self.save)
         self.fileMenu.add_command(label="Save As", command=self.saveAs)
         self.fileMenu.add_command(label="Exit",
@@ -189,10 +188,11 @@ class ProjectFrame(ttk.Frame):
         if saveError is not None:
             self.result.set(saveError)
 
-    def open(self):
+    def askOpen(self):
         startIn = RCProject.VIDEOS
-        tryIn = ("/home/owner/ownCloud/Tabletop/Campaigns/"
-                 "The Path of Resistance/scanned-unsorted/")
+        tryIn = os.path.join(sysdirs['HOME'], "Nextcloud", "Tabletop",
+                             "Campaigns", "The Path of Resistance",
+                             "scanned-unsorted")
         if os.path.isdir(tryIn):
             startIn = tryIn
         path = askopenfilename(
@@ -205,6 +205,11 @@ class ProjectFrame(ttk.Frame):
                 ("all files", "*.*"),
             ),
         )
+        if not path:
+            return
+        self.open(path)
+
+    def open(self, path):
         # self.project.open(path)
         self.project.addVideo(path, self.frameRate.get())
         self.seqPath.set(path)
@@ -223,11 +228,24 @@ class ProjectFrame(ttk.Frame):
         pass
 
 
+demo_paths = [
+    os.path.join(sysdirs['HOME'], "Nextcloud", "Music", "Projects",
+                 "The Secret of Cooey", "album-cover",
+                 "Cooey's Call (Album Cover) - Piano EP.jpg"),
+    os.path.join(sysdirs['HOME'], "Videos", "The Secret of Cooey", "media",
+                 "Darkness Ethereal - The Secret of Cooey - 1998.mp4"),
+]
+
+
 def main():
     root = tk.Tk()
     root.title("RotoCanvas")
     frame = ProjectFrame(root)
     project = frame.project
+    for demo_path in demo_paths:
+        if os.path.exists(demo_path):
+            root.after(0, frame.open, demo_path)
+            break
     root.mainloop()
     project.stop()
     saveError = project.save()

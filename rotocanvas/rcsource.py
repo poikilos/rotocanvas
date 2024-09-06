@@ -18,6 +18,11 @@ from ffmpegtime import FFMPEGTime  # noqa: E402
 from util import split_frame_name  # noqa: E402
 from util import get_frame_name  # noqa: E402
 opencv_enabled = False
+
+from rotocanvas import (
+    sysdirs,
+)
+
 try:
     import cv2
     opencv_enabled = True
@@ -30,9 +35,10 @@ except ImportError:
         "pip install --upgrade pip setuptools wheel",
         "pip install opencv-python",
         "pip install opencv-contrib-python  # dnn_superres etc",
-        "#(you still need the binary version of opencv on your system)",
+        "# (you still need the binary version of opencv on your system)",
     ]
-    tryPath = "/home/owner/Videos/Demo_Reel/media/opencvenv/bin/python3"
+    tryPath = os.path.join(sysdirs['HOME'], "Videos", "Demo_Reel",
+                           "media", "opencvenv", "bin", "python3")
     if os.path.isfile(tryPath):
         whereMsg = " such as running via \"{}\"".format(tryPath)
     else:
@@ -41,6 +47,8 @@ except ImportError:
                      " for Python or use a venv with OpenCV{}.\n"
                      "".format(whereMsg))
     # exit(1)
+
+
 
 
 class RCSource:

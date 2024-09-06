@@ -2,7 +2,7 @@
 import sys
 import os
 import platform
-# formerly needed param: "/home/owner/Videos/Demo_Reel/media/
+# formerly needed param: "$HOME/Videos/Demo_Reel/media/
 # Demo_Reel_2000_clip-Rebel_Assault_IX-318x468_2.05x_1280x960_alq-
 # 1.0.1_jpg/"
 # rotocanvas is from https://github.com/Poikilos/rotocanvas
