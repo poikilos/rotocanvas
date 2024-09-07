@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import sys
+import copy
 import os
 import platform
+import sys
 
 # region same as hierosoft/__init__.py
 
@@ -233,6 +234,12 @@ def no_enclosures(value, pairs=None):
             # Remove quotes & replace escaped ender with ender:
             value = value[1:-1].replace('\\' + pair[1], pair[1])
     return value
+
+
+def make_real(results_template):
+    if results_template is None:
+        return {}
+    return copy.deepcopy(results_template)
 
 
 def main(args):

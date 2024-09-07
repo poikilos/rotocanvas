@@ -124,7 +124,7 @@ ls findbyappearance && pip install --user --upgrade .
 - opencv for certain features such as AI super resolution
   - See tests/rcsource_tests.py under `except ImportError` for how to
     install it.
-- pretrained models
+- pre-trained models
   - Before using super resolution methods, you must add pb files via:
 
 ```
@@ -144,13 +144,13 @@ settings.addModel(pbFilePath)
   the effect, without permanently erasing any part of the effect).
 * [ ] Use the layer cache (purpose for unused variable cacheMaxMB).
 * [ ] Keyboard controls for fast operation:
-  * Ctrl Scrollwheel: zoom
-  * Shift Alt Scrollwheel: brush hardness
-  * Shift Scrollwheel: brush size
+  * Ctrl Scroll wheel: zoom
+  * Shift Alt Scroll wheel: brush hardness
+  * Shift Scroll wheel: brush size
 * [ ] Add exception handling in appropriate situations.
 - Bake all changes including ffmpeg filters to png files then overlay
   them onto the video (to use frame rate from video automatically):
-  `ffmpeg -i foo.mkv -i bar%04d.png -filter_complex "[1:v]format=argb,geq=r='r(X,Y)':a='alpha(X,Y)'[zork]; [0:v][zork]overlay" -vcodec libx264 myresult.mkv`
+  `ffmpeg -i foo.mkv -i bar%04d.png -filter_complex "[1:v]format=argb,geq=r='r(X,Y)':a='alpha(X,Y)'[zork]; [0:v][zork]overlay" -vcodec libx264 result.mkv`
   - based on
     <https://stackoverflow.com/questions/38753739/ffmpeg-overlay-a-png-image-on-a-video-with-custom-transparency>
     answered Aug 3 '16 at 22:00 RocketNuts
@@ -158,7 +158,7 @@ settings.addModel(pbFilePath)
       as `0.5*`, for example: `a=0.5*'alpha(X,Y)'`
     - For no custom opacity (only 2nd layer's alpha), simplify to the
       line in the question at that link:
-      `ffmpeg -i foo.mkv -i bar.png -filter_complex "[0:v][1:v]overlay" -vcodec libx264 myresult.mkv`
+      `ffmpeg -i foo.mkv -i bar.png -filter_complex "[0:v][1:v]overlay" -vcodec libx264 result.mkv`
 
 ### Low-priority Features
 See [doc/development/readme.md](doc/development/readme.md).

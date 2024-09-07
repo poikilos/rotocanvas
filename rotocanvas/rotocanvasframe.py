@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 from __future__ import print_function
-# from decimal import Decimal
+import copy
 # import decimal
-import locale as lc
 # import math
 import os
+import puremagic
 import sys
 
+# from decimal import Decimal
+import locale as lc
 from logging import getLogger
 
 if sys.version_info.major >= 3:
@@ -28,11 +30,19 @@ else:  # Python 2
 
 ENABLE_PIL = False
 try:
+    import PIL
     from PIL import ImageTk, Image
     ENABLE_PIL = True
 except ImportError:
     pass
 
+ENABLE_AV = False
+try:
+    import av
+    ENABLE_AV = True
+    from rotocanvas import rc_av
+except ImportError:
+    pass
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 REPO_DIR = os.path.dirname(MODULE_DIR)
 
@@ -41,8 +51,15 @@ if __name__ == "__main__":
 
 from rotocanvas import (
     sysdirs,
+    make_real,
 )
 from rotocanvas.rcproject import RCProject  # noqa: E402
+from rotocanvas.moremimetypes import (
+    # dot_ext_mimetype,
+    path_mimetype,
+)
+
+from rotocanvas import rc_av
 
 logger = getLogger(__name__)
 
@@ -55,6 +72,8 @@ class ProjectFrame(ttk.Frame):
         # example: moneyStr = lc.currency(amount, grouping=True)
         self.parent = parent
         root = self.parent
+        self.photo = None
+        self.image_instruction = None
         self.seqPath = tk.StringVar()
         self.frameRate = tk.StringVar()
         self.result = tk.StringVar()
@@ -145,7 +164,6 @@ class ProjectFrame(ttk.Frame):
         self.project = RCProject()
         self.titleFmt = "RotoCanvas - {}"
         root.title(self.titleFmt.format(self.project.path))
-        self.img = None
 
     def setTheme(self, name):
         self.parent.style.theme_use(name)
@@ -209,31 +227,149 @@ class ProjectFrame(ttk.Frame):
             return
         self.open(path)
 
-    def open(self, path):
-        # self.project.open(path)
-        self.project.addVideo(path, self.frameRate.get())
-        self.seqPath.set(path)
+    def _open_no_puremagic(self, path, results_template=None):
+        results = make_real(results_template)
         try:
-            self.img = tk.PhotoImage(file=path)
+            self.photo = tk.PhotoImage(file=path)
+            results['category'] = "image"
         except tk.TclError:
+            self.photo = None
             if ENABLE_PIL:
-                self.img = ImageTk.PhotoImage(file=path)
+                try:
+                    self.photo = ImageTk.PhotoImage(file=path)
+                    results['category'] = "image"
+                except PIL.UnidentifiedImageError:
+                    # arst
+                    # self.photo = ImageTk.PhotoImage()
+                    results['category'] = "video"
             else:
                 logger.error("PIL is not enabled.")
                 raise
-        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.img)
-        pass
+        return results
+
+    def openImageSequence(self, path, results_template):
+        results = make_real(results_template)
+        try:
+            self.photo = tk.PhotoImage(file=path)
+            results['category'] = "image"
+        except tk.TclError:
+            self.photo = None
+            if ENABLE_PIL:
+                try:
+                    self.photo = ImageTk.PhotoImage(file=path)
+                    results['category'] = "image"
+                except PIL.UnidentifiedImageError:
+                    logger.error("PIL couldn't load the file.")
+                    raise
+            else:
+                logger.error("PIL is not enabled.")
+                raise
+
+    def onLoadProgress(self, event_d):
+        ratio = event_d.get('ratio')
+        percent_s = ""
+        if ratio:
+            percent_s = "{}%".format(round(ratio))
+        logger.warning("[onLoadProgress] Not implemented. {}"
+                       .format(percent_s))
+
+    def openVideo(self, path, results_template=None):
+        results = make_real(results_template)
+        if ENABLE_AV:
+            cache = rc_av.cache_keyframes(path)
+            meta = rc_av.analyze_video(path, self.onLoadProgress)
+            # collect and remove runtime data:
+            self.container = meta['container']
+            del meta['container']
+            raise NotImplementedError(meta)
+            # Generate a picture (or use canvas directly?) to show video.
+        else:
+            raise RuntimeError("Only PyAV is implemented (not pyav) but av is not detected/enabled.")
+        return results
+
+    def showFrame(self, frame_number):
+        """Displays a specific frame of the video."""
+        # Seek to the desired frame
+        self.container.seek(frame_number, stream=self.video_stream)
+
+        # Decode the frame
+        for packet in self.container.demux(self.video_stream):
+            for frame in packet.decode():
+                # Display the decoded frame
+                self.current_frame = frame
+                img = frame.to_image()
+                # self.photo = ImageTk.PhotoImage(img)
+                # ^ Keep a reference to prevent garbage collection
+                self.showPhotoImage(self.photo)
+                # self.label.config(image=self.photo)
+                # self.label.image = self.photo
+                break
+            break
+
+    def clearCanvas(self):
+        self.canvas.delete("all")
+
+    def showPhotoImage(self, photoimage):
+        self.photo = photoimage
+        self.clearCanvas()
+        self.image_instruction = \
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo)
+        raise NotImplementedError(
+            "self.image_instruction={}({})"
+            .format(type(self.image_instruction).__name__,
+                    self.image_instruction))
+
+    def open(self, path, results_template=None):
+        results = make_real(results_template)
+        # self.project.open(path)
+        self.project.addVideo(path, self.frameRate.get())
+        self.seqPath.set(path)
+        self.clearCanvas()
+        try:
+            file_info = puremagic.from_file(path)
+            # ^ huh? Only gets a string: ".mp4" so:
+            if isinstance(file_info, str):
+                # Why just mp4?
+                logger.warning("file_info={}".format(file_info))
+                if "/" not in file_info:
+                    mime_type = path_mimetype(path)
+                    if mime_type is None:
+                        raise ValueError(
+                            "Unknown extension for \"{}\""
+                            .format(path))
+                else:
+                    mime_type = file_info
+            else:
+                logger.info("file_info={}".format(file_info))
+                mime_type = file_info[0].mime_type  # Get the MIME type
+            results['mime_type'] = mime_type
+            logger.warning("Loading {}".format(mime_type))
+            # Check if the file is an image or video
+            if mime_type.startswith("image/"):
+                results.update(
+                    self.openImageSequence(path, results_template=results)
+                )
+            elif mime_type.startswith("video/"):
+                results.update(self.openVideo(path))
+                results['category'] = "video"
+            else:
+                logger.error("The file is of another type:", mime_type)
+        except puremagic.PureError as ex:
+            logger.error("Could not determine file type:")
+            logger.exception(ex)
+        self.showPhotoImage(self.photo)
+        return results
 
     def end(self):
         pass
 
 
 demo_paths = [
+    os.path.join(sysdirs['HOME'], "Videos", "The Secret of Cooey", "media",
+                 "Darkness Ethereal - The Secret of Cooey - 1998.mp4"),
     os.path.join(sysdirs['HOME'], "Nextcloud", "Music", "Projects",
                  "The Secret of Cooey", "album-cover",
                  "Cooey's Call (Album Cover) - Piano EP.jpg"),
-    os.path.join(sysdirs['HOME'], "Videos", "The Secret of Cooey", "media",
-                 "Darkness Ethereal - The Secret of Cooey - 1998.mp4"),
 ]
 
 
@@ -244,6 +380,9 @@ def main():
     project = frame.project
     for demo_path in demo_paths:
         if os.path.exists(demo_path):
+            demo_link = os.path.join(REPO_DIR, "video.mp4")
+            if not os.path.islink(demo_link):
+                os.symlink(demo_path, demo_link)
             root.after(0, frame.open, demo_path)
             break
     root.mainloop()
