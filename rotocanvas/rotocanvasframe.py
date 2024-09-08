@@ -282,6 +282,7 @@ class ProjectFrame(ttk.Frame):
             self.container = meta['container']
             del meta['container']
             raise NotImplementedError(meta)
+            # See analyze_video in docs/development
             # Generate a picture (or use canvas directly?) to show video.
         else:
             raise RuntimeError("Only PyAV is implemented (not pyav) but av is not detected/enabled.")
