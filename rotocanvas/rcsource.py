@@ -49,8 +49,6 @@ except ImportError:
     # exit(1)
 
 
-
-
 class RCSource:
     _defaultExtensions = ["jpg", "jpeg", "jpe", "png", "bmp"]
     ORGANIZE_MODEL_DIR = 0
