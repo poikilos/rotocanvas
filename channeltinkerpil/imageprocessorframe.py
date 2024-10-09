@@ -905,9 +905,8 @@ class MainFrame(ttk.Frame):
                 self.markBtn['state'] = tk.NORMAL
                 echo1('- loaded.')
             except PIL.UnidentifiedImageError:
-                # Must be *really* corrupt if
-                # ImageFile.LOAD_TRUNCATED_IMAGES = True
-                # doesn't work.
+                # Must be *really* corrupt
+                #   if still no good with ImageFile.LOAD_TRUNCATED_IMAGES=True
                 # self.imageLabels[index].configure(image='')
                 echo0(prefix + "index={}".format(index))
                 self.imageErrorVars[index].set("unreadable")
